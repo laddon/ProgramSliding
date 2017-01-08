@@ -615,7 +615,7 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 	requires def(S1) !! input(S2)
 	requires Valid(S1)
 	requires Valid(S2)
-   ensures EquivalentStatments(S1,S2)
+    ensures EquivalentStatments(S1,S2)
 {
 	forall P: Predicate, s: State | vars(P) <= def(S1) {
 		calc {
@@ -624,7 +624,7 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			wp(S1,(wp(S2,P)))(s);
 			== {RE3(S2,P);}
 			wp(S1, AND(P, wp(S2,ConstantPrdicate(true))))(s);
-			== {/*conj. of wp.S1*/}
+			== {ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
 			AND(wp(S1,P), wp(S1,(wp(S2,ConstantPrdicate(true)))))(s);
 			== { var P1 := wp(S2,ConstantPrdicate(true)); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,P1); } assert def(S1) !! input(S2);} RE3(S1,P1); }
 			AND(wp(S1,P),AND( wp(S1,ConstantPrdicate(true)), wp(S2,ConstantPrdicate(true))))(s);
@@ -647,7 +647,7 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			wp(S2,(wp(S1,P)))(s);
 			== {RE3(S1,P);}
 			wp(S2,AND(P , wp(S1,ConstantPrdicate(true))))(s);
-			== {/*conj. of wp.S2*/}
+			== {ConjWp(S2, P, wp(S1,ConstantPrdicate(true)));}
 			AND(wp(S2,P), wp(S2,(wp(S1,ConstantPrdicate(true)))))(s);
 			== {var P1 := wp(S1,ConstantPrdicate(true)); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P1); } assert def(S2) !! input(S1) ;} RE3(S2,P1); }
 			AND(wp(S2,P), AND(wp(S2,ConstantPrdicate(true)), wp(S1,ConstantPrdicate(true))))(s);
@@ -669,10 +669,15 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 //TODO 26/11/16:  -> define glob for predicates
 //TODO 26/11/16:  -> define subtarct operator for setVaribale<>
 //TODO 26/11/16:  -> define Union operator for setVaribale<>
-lemma Leibniz<T>(f:Predicate->T, P1: Predicate, P2: Predicate)
+lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
 	requires EquivalentPredicates(P1,P2)
 	requires f.requires(P1) && f.requires(P2)
 	ensures f(P1) == f(P2)
+
+
+lemma ConjWp(S: Statement, P1: Predicate, P2: Predicate)
+requires Valid(S)
+ensures  EquivalentPredicates(wp(S,AND(P1,P2)),AND(wp(S,P1),wp(S,P2)))
 	
 
 lemma RE1(P: Predicate, S: Statement)
@@ -857,7 +862,10 @@ lemma RE3( S: Statement,P: Predicate)
 			AND(P, wp(S,ConstantPrdicate(true)))(s); 
 		}
 		}
-		case Skip =>
+		case Skip => forall s: State { calc {
+		
+		}
+		}
 	}
 }
 

@@ -610,6 +610,8 @@ lemma IdentityOfAND(S: Statement,P1: Predicate)
 	ensures EquivalentPredicates(wp(S,AND(P1,ConstantPrdicate(true))),wp(S,P1))
 
 lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
+	//requires !S1.Skip?
+	//requires !S2.Skip?
 	requires def(S1) !! def(S2)
 	requires input(S1) !! def(S2)
 	requires def(S1) !! input(S2)
@@ -779,6 +781,7 @@ lemma RE2( S: Statement,P: Predicate)
 }
 
 lemma RE3( S: Statement,P: Predicate)
+	//requires !S.Skip?
 	requires  def(S) !! vars(P)
 	requires Valid(S)
 	ensures wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
@@ -786,20 +789,7 @@ lemma RE3( S: Statement,P: Predicate)
 {
    
 	match S {
-		case Assignment(LHS, RHS) => forall s: State { calc {
-		(AND(P,wp(S,ConstantPrdicate(true))))(s);
-		== {/* wp of assignment */}
-		(AND(P,sub(ConstantPrdicate(true), LHS, RHS)))(s);
-		== {assert setOf(LHS) !! vars(ConstantPrdicate(true));}
-		(AND(P,ConstantPrdicate(true)))(s);
-		== {/* identity element of ^ */}
-		P(s);
-		== {assert setOf(LHS) !! vars(P);}
-		sub(P, LHS, RHS)(s);
-		== {/* wp of assignment */}
-		wp(S,P)(s);
-		}
-		}
+		
 		case SeqComp(S1, S2) => forall s: State { calc {
 		wp(S,P)(s);
 		== {}
@@ -808,13 +798,13 @@ lemma RE3( S: Statement,P: Predicate)
 		wp(S1, wp(S2, P))(s);
 		== {assert def(S2) !! vars(P);}
 		wp(S1, AND(P,wp(S2,ConstantPrdicate(true))))(s);
-		== {/* wp(S1) is finitely conjunctive */}
+		== {/* wp(S1) is finitely conjunctive */ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
 		AND(wp(S1,P),wp(S1,wp(S2,ConstantPrdicate(true))))(s);
 		== {assert def(S1) !! vars(P);}
 		AND(AND(P,wp(S1,ConstantPrdicate(true))),wp(S1,wp(S2,ConstantPrdicate(true))))(s);
 		== {}
 		AND(P,AND(wp(S1,ConstantPrdicate(true)),wp(S1,wp(S2,ConstantPrdicate(true)))))(s);
-		== {/* finitely conjunctive */}
+		== {/* finitely conjunctive */ConjWp(S1, ConstantPrdicate(true),wp(S2,ConstantPrdicate(true)));}
 		AND(P,wp(S1,AND(ConstantPrdicate(true),wp(S2,ConstantPrdicate(true)))))(s);
 		== {/* identity element of ^ */}
 		AND(P,wp(S1,wp(S2,ConstantPrdicate(true))))(s);
@@ -860,6 +850,20 @@ lemma RE3( S: Statement,P: Predicate)
 			AND(P, wp(S1,ConstantPrdicate(true)))(s);
 			== //{ vars(ConstantPrdicate(true)) = XX;} //TODO 26/11/16: pharse this
 			AND(P, wp(S,ConstantPrdicate(true)))(s); 
+		}
+		}
+		case Assignment(LHS, RHS) => forall s: State { calc {
+		(AND(P,wp(S,ConstantPrdicate(true))))(s);
+		== {/* wp of assignment */}
+		(AND(P,sub(ConstantPrdicate(true), LHS, RHS)))(s);
+		== {assert setOf(LHS) !! vars(ConstantPrdicate(true));}
+		(AND(P,ConstantPrdicate(true)))(s);
+		== {/* identity element of ^ */}
+		P(s);
+		== {assert setOf(LHS) !! vars(P);}
+		sub(P, LHS, RHS)(s);
+		== {/* wp of assignment */}
+		wp(S,P)(s);
 		}
 		}
 		case Skip => forall s: State { calc {

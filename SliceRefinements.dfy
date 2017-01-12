@@ -750,7 +750,7 @@ lemma RE2( S: Statement,P: Predicate)
 			vars(P) - ddef(S) + input(S);
 		}
 		}
-		case DO(B,S1) => forall Q:Predicate { calc { // P150 what is Y?? need to convert it!
+		case DO(B,S1) => forall Q:Predicate { calc { 
 			vars(wp(S1,P));
 			== {}
 			vars(AND(OR(B.0,P), OR(NOT(B.0), wp(S1, Q))));
@@ -785,11 +785,20 @@ lemma RE3( S: Statement,P: Predicate)
 	requires  def(S) !! vars(P)
 	requires Valid(S)
 	ensures wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
-   ensures S.LocalDeclaration? ==> wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
+   //ensures S.LocalDeclaration? ==> wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
 {
    
 	match S {
-		
+		case Skip => forall s: State { calc {
+		wp(S,P)(s);
+		== {IdentityOfAND(S,P);}
+		wp(S,AND(P,ConstantPrdicate(true)))(s);
+		== {ConjWp(S, P, ConstantPrdicate(true));}
+		AND(wp(S,P),wp(S,ConstantPrdicate(true)))(s);
+		== {/*def of wp*/}
+		AND(P,wp(S,ConstantPrdicate(true)))(s);
+		}
+		}
 		case SeqComp(S1, S2) => forall s: State { calc {
 		wp(S,P)(s);
 		== {}
@@ -865,11 +874,7 @@ lemma RE3( S: Statement,P: Predicate)
 		== {/* wp of assignment */}
 		wp(S,P)(s);
 		}
-		}
-		case Skip => forall s: State { calc {
-		
-		}
-		}
+		}		
 	}
 }
 

@@ -869,7 +869,7 @@ lemma RE3( S: Statement,P: Predicate)
 		(AND(P,ConstantPrdicate(true)))(s);
 		== {/* identity element of ^ */}
 		P(s);
-		== {assert setOf(LHS) !! vars(P);}
+		== {assert setOf(LHS) !! vars(P);Dummy(P,LHS,RHS,s);}
 		sub(P, LHS, RHS)(s);
 		== {/* wp of assignment */}
 		wp(S,P)(s);
@@ -877,6 +877,13 @@ lemma RE3( S: Statement,P: Predicate)
 		}		
 	}
 }
+
+lemma Dummy(P: Predicate,LHS: seq<Variable>, RHS: seq<Expression>,s: State)
+requires setOf(LHS) !! vars(P)
+requires P.requires(s)
+requires |LHS| == |RHS|
+requires sub(P, LHS, RHS).requires(s)
+ensures P(s) == sub(P, LHS, RHS)(s)
 
 //TODO Lemma for vars(P) !! setOf(L)
 

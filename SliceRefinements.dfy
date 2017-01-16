@@ -6,7 +6,7 @@ datatype Value = Int(i: int) | Bool(b: bool)
 type Expression = (State -> Value, set<Variable>)
 type BooleanExpression = (State -> bool, set<Variable>) // State->Value,set<Variable>
 type State = map<Variable, Value>
-type Predicate = State -> bool//string
+type Predicate = (State -> bool, set<Variable>)//string
 
 
 predicate Valid(stmt: Statement) reads *
@@ -22,7 +22,7 @@ predicate Valid(stmt: Statement) reads *
 			(forall state: State :: B.0.requires(state) /*&& B.0(state).Bool?*/) && Valid(S)
 		case LocalDeclaration(L,S) => Valid(S)
 	} &&
-	forall state1: State, P: Predicate  :: P.requires(state1)
+	forall state1: State, P: Predicate  :: P.0.requires(state1)
 
 }
 
@@ -73,28 +73,31 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case Skip => P
 		case Assignment(LHS,RHS) => sub(P, LHS, RHS)
 		case SeqComp(S1,S2) => wp(S1, wp(S2, P))
-		case IF(B,Sthen,Selse) => (state: State)
+		case IF(B,Sthen,Selse) => var f := (state: State)
 			reads *
 			requires B.0.requires(state)
-			requires Valid(Sthen) && wp(Sthen, P).requires(state)
-			requires Valid(Selse) && wp(Selse, P).requires(state)
+			requires Valid(Sthen) && wp(Sthen, P).0.requires(state)
+			requires Valid(Selse) && wp(Selse, P).0.requires(state)
 			=> /*B.0(state).Bool? && */
-			(B.0(state) ==> wp(Sthen, P)(state)) && (!B.0(state) ==> wp(Selse, P)(state))
-		case DO(B,S) => (state: State)
+			(B.0(state) ==> wp(Sthen, P).0(state)) && (!B.0(state) ==> wp(Selse, P).0(state));
+			(f,vars(P)-ddef(stmt)+input(stmt))
+		case DO(B,S) => var f:= (state: State)
 			reads * //B.reads
-			requires forall state1: State, P: Predicate  :: P.requires(state1)
+			requires forall state1: State, P: Predicate  :: P.0.requires(state1)
 			=>
 				(var k: Predicate -> Predicate := Q
 				=>
-				((state: State)
+				var g := ((state: State)
 						reads *
 						requires Valid(S)
 						requires B.0.requires(state) /*&& B.0(state).Bool?*/
-						requires wp(S, Q).requires(state)
-						requires P.requires(state)
+						requires wp(S, Q).0.requires(state)
+						requires P.0.requires(state)
 					=>
-					(B.0(state) || P(state)) && (!B.0(state) || wp(S, Q)(state)));
-				existsK(0, k, state))
+					(B.0(state) || P.0(state)) && (!B.0(state) || wp(S, Q).0(state)));
+					(g,vars(Q)-ddef(stmt)+input(stmt));
+				existsK(0, k, state));
+				(f,vars(P)-ddef(stmt)+input(stmt))
 					
 		case LocalDeclaration(L,S) => wp(S,P)
 	}
@@ -104,9 +107,10 @@ function existsK(i: nat, k: Predicate -> Predicate, state: State): bool
 	reads *
 	requires forall i: nat :: power.requires(k, i)
 	requires forall i: nat, P: Predicate :: power(k, i).requires(P)
-	requires forall state1: State, P: Predicate  :: P.requires(state1)
+	requires forall state1: State, P: Predicate  :: P.0.requires(state1)
 {
-	exists i: nat :: power(k, i)(_ => false)(state)
+	var P := ((_ => false),(set v | v in state));
+	exists i: nat :: power(k, i)(P).0(state)
 }
 /*
 function power(k: (Predicate, State) -> bool, i: nat): (Predicate, State) -> bool
@@ -146,13 +150,14 @@ function method SetContain(v1: set<Variable>, v2: set<Variable>) : bool { {} } /
 function sub(P: Predicate, X: seq<Variable>, E: seq<Expression>): Predicate
 	requires |X| == |E|
 {
-	(state: State)
+	var f:= (state: State)
 	reads *
 	requires StateUpdate.requires(state, X, E, state)
-	requires P.requires(StateUpdate(state, X, E, state))
+	requires P.0.requires(StateUpdate(state, X, E, state))
 	=>
 		var newState := StateUpdate(state, X, E, state); 
-		P(newState)
+		P.0(newState);
+	(f,P.1 - setOf(X) + varsInExps(E))
 }
 
 function StateUpdate(oldState: State, X: seq<Variable>, E: seq<Expression>, newState: State): State
@@ -166,8 +171,8 @@ function StateUpdate(oldState: State, X: seq<Variable>, E: seq<Expression>, newS
 
 function ConstantPrdicate(b: bool): Predicate
 {
-	if b then (_ => true)
-	else (_ => false)
+	if b then ((_ => true),{})
+	else ((_ => false),{})
 }
 
 method Main()
@@ -261,7 +266,7 @@ function method ExpressionListToString(expressions: seq<Expression>) : string
 */
 function method PredicateFromString(str: string): Predicate
 {
-	(state: map<Variable, Value>) => true
+	((state: map<Variable, Value>) => true,{})
 }
 
 predicate method ValidAssignment(str: string)
@@ -325,7 +330,7 @@ function input(S: Statement) : set<Variable>
 function glob(S: Statement) : set<Variable>
 	//ensures glob(S) == setOf(def(S) + input(S));
 {
-	set v | v in def(S) + input(S)
+	set x | x in def(S) + input(S)
 }
 
 function method setOf(s: seq<Variable>) : set<Variable>
@@ -546,7 +551,7 @@ method ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
 
 predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
 {
-	forall s: State :: P1.requires(s) && P2.requires(s) ==> P1(s) == P2 (s)  
+	forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s)  
 }
 predicate EquivalentStatments(S1: Statement, S2: Statement)
 	reads *
@@ -559,22 +564,22 @@ predicate EquivalentStatments(S1: Statement, S2: Statement)
 
 function AND(P1: Predicate,P2: Predicate): Predicate
 {
-	(s: State) reads * requires P1.requires(s) && P2.requires(s) => P1(s) && P2(s)
+	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) && P2.0(s),P1.1 + P2.1)
 }
 
 function OR(P1: Predicate,P2: Predicate): Predicate
 {
-	(s: State) reads * requires P1.requires(s) && P2.requires(s) => P1(s) || P2(s)
+	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) || P2.0(s),P1.1 + P2.1)
 }
 
 function IMPLIES(P1: Predicate,P2: Predicate): Predicate  
 {
-	(s: State) reads * requires P1.requires(s) && P2.requires(s) => P1(s) ==> P2(s)
+	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) ==> P2.0(s), P1.1 + P2.1) 
 }
 
 function NOT(P1: Predicate): Predicate  
 {
-	(s: State) reads * requires P1.requires(s) => !P1(s)
+	((s: State) reads * requires P1.0.requires(s) => !P1.0(s), P1.1)
 }
 
 /*function BooleanExpressionToPredicate(B0: BooleanExpression): Predicate
@@ -591,11 +596,11 @@ lemma AbsorptionOfTermination3_14(P: Predicate,S: Statement)
 	ensures EquivalentPredicates(AND(wp(S,P),wp(S,ConstantPrdicate(true))) , wp(S,P));
 {
 	forall s:State {calc {
-		AND(wp(S,P),wp(S,ConstantPrdicate(true)))(s);
+		AND(wp(S,P),wp(S,ConstantPrdicate(true))).0(s);
 		== {FinitelyConjunctive(S,P,ConstantPrdicate(true));}
-		wp(S,AND(P,ConstantPrdicate(true)))(s);
+		wp(S,AND(P,ConstantPrdicate(true))).0(s);
 		== {IdentityOfAND(S,P);}
-		wp(S,P)(s);
+		wp(S,P).0(s);
 	}	
 	}
 }
@@ -617,50 +622,50 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 	requires def(S1) !! input(S2)
 	requires Valid(S1)
 	requires Valid(S2)
-    ensures EquivalentStatments(S1,S2)
+    ensures EquivalentStatments(SeqComp(S1,S2),SeqComp(S2,S1))
 {
 	forall P: Predicate, s: State | vars(P) <= def(S1) {
 		calc {
-			wp(SeqComp(S1,S2), P)(s);
+			wp(SeqComp(S1,S2), P).0(s);
 			== {/*wp of ‘ ; ’*/}
-			wp(S1,(wp(S2,P)))(s);
+			wp(S1,(wp(S2,P))).0(s);
 			== {RE3(S2,P);}
-			wp(S1, AND(P, wp(S2,ConstantPrdicate(true))))(s);
+			wp(S1, AND(P, wp(S2,ConstantPrdicate(true)))).0(s);
 			== {ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
-			AND(wp(S1,P), wp(S1,(wp(S2,ConstantPrdicate(true)))))(s);
+			AND(wp(S1,P), wp(S1,(wp(S2,ConstantPrdicate(true))))).0(s);
 			== { var P1 := wp(S2,ConstantPrdicate(true)); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,P1); } assert def(S1) !! input(S2);} RE3(S1,P1); }
-			AND(wp(S1,P),AND( wp(S1,ConstantPrdicate(true)), wp(S2,ConstantPrdicate(true))))(s);
+			AND(wp(S1,P),AND( wp(S1,ConstantPrdicate(true)), wp(S2,ConstantPrdicate(true)))).0(s);
 			== {}
-			AND(AND(wp(S1,P),wp(S1,ConstantPrdicate(true))), wp(S2,ConstantPrdicate(true)))(s);
+			AND(AND(wp(S1,P),wp(S1,ConstantPrdicate(true))), wp(S2,ConstantPrdicate(true))).0(s);
 			== {AbsorptionOfTermination3_14(P,S1);}
-			AND(wp(S1,P), wp(S2,ConstantPrdicate(true)))(s);
+			AND(wp(S1,P), wp(S2,ConstantPrdicate(true))).0(s);
 			== {}
-			AND(wp(S2,ConstantPrdicate(true)), wp(S1,P))(s);
+			AND(wp(S2,ConstantPrdicate(true)), wp(S1,P)).0(s);
 			== {var P1 := wp(S1,P); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P1); } assert def(S2) !! (input(S1) + vars(P));} RE3(S2,P1); }
-			(wp(S2,(wp(S1,P))))(s);
+			(wp(S2,(wp(S1,P)))).0(s);
 			== {/*wp of ‘ ; ’*/}
-			wp(SeqComp(S2,S1), P)(s);
+			wp(SeqComp(S2,S1), P).0(s);
 		}
 	}
 	forall P: Predicate, s: State | vars(P) !! def(S1) {
 		calc {
-			wp(SeqComp(S2,S1), P)(s);
+			wp(SeqComp(S2,S1), P).0(s);
 			==	{/*wp of ‘ ; ’*/}
-			wp(S2,(wp(S1,P)))(s);
+			wp(S2,(wp(S1,P))).0(s);
 			== {RE3(S1,P);}
-			wp(S2,AND(P , wp(S1,ConstantPrdicate(true))))(s);
+			wp(S2,AND(P , wp(S1,ConstantPrdicate(true)))).0(s);
 			== {ConjWp(S2, P, wp(S1,ConstantPrdicate(true)));}
-			AND(wp(S2,P), wp(S2,(wp(S1,ConstantPrdicate(true)))))(s);
+			AND(wp(S2,P), wp(S2,(wp(S1,ConstantPrdicate(true))))).0(s);
 			== {var P1 := wp(S1,ConstantPrdicate(true)); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P1); } assert def(S2) !! input(S1) ;} RE3(S2,P1); }
-			AND(wp(S2,P), AND(wp(S2,ConstantPrdicate(true)), wp(S1,ConstantPrdicate(true))))(s);
+			AND(wp(S2,P), AND(wp(S2,ConstantPrdicate(true)), wp(S1,ConstantPrdicate(true)))).0(s);
 			== {}
-			AND(AND(wp(S2,P), wp(S2,ConstantPrdicate(true))), wp(S1,ConstantPrdicate(true)))(s);
+			AND(AND(wp(S2,P), wp(S2,ConstantPrdicate(true))), wp(S1,ConstantPrdicate(true))).0(s);
 			== {AbsorptionOfTermination3_14(P,S2);}
-			AND(wp(S2,P), wp(S1,ConstantPrdicate(true)))(s);
+			AND(wp(S2,P), wp(S1,ConstantPrdicate(true))).0(s);
 			== {var P1 := wp(S2,P); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,P1); } assert def(S1) !! (input(S2) + vars(P));} RE3(S1,P1); }
-			wp(S1,(wp(S2,P)))(s);
+			wp(S1,(wp(S2,P))).0(s);
 			== {/*wp of ‘ ; ’*/}
-			wp(SeqComp(S1,S2), P)(s);
+			wp(SeqComp(S1,S2), P).0(s);
 		}
 	}
 }
@@ -735,7 +740,7 @@ lemma RE2( S: Statement,P: Predicate)
 			== {/* IF definition */}
 			vars(wp(IF(B0, Sthen, Selse),P));
 			== {/* wp definitionof IF */}
-			vars(AND(IMPLIES(B0.0,wp(Sthen,P)), IMPLIES(NOT(B0.0),wp(Selse,P))));
+			vars(AND(IMPLIES((B0.0,B0.1),wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));
 			== {/* def. of glob; glob.B = glob.(¬B) */}
 			B0.1 + vars(wp(Sthen,P)) + vars(wp(Selse,P));
 			<= {/* proviso, twice */}
@@ -753,17 +758,17 @@ lemma RE2( S: Statement,P: Predicate)
 		case DO(B,S1) => forall Q:Predicate { calc { 
 			vars(wp(S1,P));
 			== {}
-			vars(AND(OR(B.0,P), OR(NOT(B.0), wp(S1, Q))));
+			vars(AND(OR(B,P), OR(NOT(B), wp(S1, Q))));
 			== {}
-			vars(B.0) + vars(P) + vars(wp(S1, Q));
+			vars(B) + vars(P) + vars(wp(S1, Q));
 			<= {/*Proviso glob.(wp.S.Q) <= (glob.Q\ddef.S) + input.S */}
-			vars(B.0) + vars(P) + (vars(Q) - ddef(S1)) + input(S1);
+			vars(B) + vars(P) + (vars(Q) - ddef(S1)) + input(S1);
 			<= {/*Set theory*/}
-			vars(B.0) + vars(P) + vars(Q) + input(S1);
+			vars(B) + vars(P) + vars(Q) + input(S1);
 			<= {/*Proviso glob.Q <=  glob.P + glob.B + input.S*/}
-			vars(B.0) + vars(P) + vars(B.0) + vars(P) + input(S1) + input(S1);
+			vars(B) + vars(P) + vars(B) + vars(P) + input(S1) + input(S1);
 			== {/*Set theory*/}
-			vars(B.0) + vars(P) + input(S1);
+			vars(B) + vars(P) + input(S1);
 		}}
 		case Skip => calc {
 
@@ -784,95 +789,98 @@ lemma RE3( S: Statement,P: Predicate)
 	//requires !S.Skip?
 	requires  def(S) !! vars(P)
 	requires Valid(S)
-	ensures wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
+	ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPrdicate(true))))
    //ensures S.LocalDeclaration? ==> wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
 {
    
 	match S {
 		case Skip => forall s: State { calc {
-		wp(S,P)(s);
+		wp(S,P).0(s);
 		== {IdentityOfAND(S,P);}
-		wp(S,AND(P,ConstantPrdicate(true)))(s);
+		wp(S,AND(P,ConstantPrdicate(true))).0(s);
 		== {ConjWp(S, P, ConstantPrdicate(true));}
-		AND(wp(S,P),wp(S,ConstantPrdicate(true)))(s);
+		AND(wp(S,P),wp(S,ConstantPrdicate(true))).0(s);
 		== {/*def of wp*/}
-		AND(P,wp(S,ConstantPrdicate(true)))(s);
+		AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
 		case SeqComp(S1, S2) => forall s: State { calc {
-		wp(S,P)(s);
+		wp(S,P).0(s);
 		== {}
-		wp(SeqComp(S1, S2),P)(s);
+		wp(SeqComp(S1, S2),P).0(s);
 		== {/* wp of SeqComp */}
-		wp(S1, wp(S2, P))(s);
+		wp(S1, wp(S2, P)).0(s);
 		== {assert def(S2) !! vars(P);}
-		wp(S1, AND(P,wp(S2,ConstantPrdicate(true))))(s);
+		wp(S1, AND(P,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {/* wp(S1) is finitely conjunctive */ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
-		AND(wp(S1,P),wp(S1,wp(S2,ConstantPrdicate(true))))(s);
+		AND(wp(S1,P),wp(S1,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {assert def(S1) !! vars(P);}
-		AND(AND(P,wp(S1,ConstantPrdicate(true))),wp(S1,wp(S2,ConstantPrdicate(true))))(s);
+		AND(AND(P,wp(S1,ConstantPrdicate(true))),wp(S1,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {}
-		AND(P,AND(wp(S1,ConstantPrdicate(true)),wp(S1,wp(S2,ConstantPrdicate(true)))))(s);
+		AND(P,AND(wp(S1,ConstantPrdicate(true)),wp(S1,wp(S2,ConstantPrdicate(true))))).0(s);
 		== {/* finitely conjunctive */ConjWp(S1, ConstantPrdicate(true),wp(S2,ConstantPrdicate(true)));}
-		AND(P,wp(S1,AND(ConstantPrdicate(true),wp(S2,ConstantPrdicate(true)))))(s);
+		AND(P,wp(S1,AND(ConstantPrdicate(true),wp(S2,ConstantPrdicate(true))))).0(s);
 		== {/* identity element of ^ */}
-		AND(P,wp(S1,wp(S2,ConstantPrdicate(true))))(s);
+		AND(P,wp(S1,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {/* wp of SeqComp */}
-		AND(P,wp(SeqComp(S1, S2),ConstantPrdicate(true)))(s);
+		AND(P,wp(SeqComp(S1, S2),ConstantPrdicate(true))).0(s);
 		== {/* definition of SeqComp */}
-		AND(P,wp(S,ConstantPrdicate(true)))(s);
+		AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
 		case IF(B0, Sthen, Selse) => forall s: State { calc {
-			wp(S,P)(s);
+			wp(S,P).0(s);
 			== {/* IF definition */}
-			wp(IF(B0, Sthen, Selse),P)(s);
+			wp(IF(B0, Sthen, Selse),P).0(s);
 			== {/* wp definition of IF */}
-			AND(IMPLIES(B0.0,wp(Sthen,P)),IMPLIES(NOT(B0.0),wp(Selse,P)))(s);
+			AND(IMPLIES(B0,wp(Sthen,P)),IMPLIES(NOT(B0),wp(Selse,P))).0(s);
 			== {/*proviso: def(IF) !! vars(P) => def(Sthen) !! vars(P) */}
-			AND(IMPLIES(B0.0,AND(P,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0.0),wp(Selse,P)))(s);
+			AND(IMPLIES(B0,AND(P,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0),wp(Selse,P))).0(s);
 			== {/*proviso: def(IF) !! vars(P) => def(Selse) !! vars(P) */}
-			AND(IMPLIES(B0.0,AND(P,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0.0),AND(P,wp(Selse,ConstantPrdicate(true)))))(s);
+			AND(IMPLIES(B0,AND(P,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0),AND(P,wp(Selse,ConstantPrdicate(true))))).0(s);
 			== {/* pred. calc.: [X => (Y && Z) == (X => Y) && (X => Z)] */}
-			AND(AND(IMPLIES(B0.0,P),IMPLIES(B0.0,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0.0),AND(P,wp(Selse,ConstantPrdicate(true)))))(s);
+			AND(AND(IMPLIES(B0,P),IMPLIES(B0,wp(Sthen,ConstantPrdicate(true)))),IMPLIES(NOT(B0),AND(P,wp(Selse,ConstantPrdicate(true))))).0(s);
 			== {/* pred. calc.: [X => (Y && Z) == (X => Y) && (X => Z)] */}
-			AND(AND(IMPLIES(B0.0,P),IMPLIES(B0.0,wp(Sthen,ConstantPrdicate(true)))),AND(IMPLIES(NOT(B0.0),P),IMPLIES(NOT(B0.0),wp(Selse,ConstantPrdicate(true)))))(s);
+			AND(AND(IMPLIES(B0,P),IMPLIES(B0,wp(Sthen,ConstantPrdicate(true)))),AND(IMPLIES(NOT(B0),P),IMPLIES(NOT(B0),wp(Selse,ConstantPrdicate(true))))).0(s);
 			== {/* pred. calc.: [(A && B) && C == (A && C) && B] */}
-			AND(AND(IMPLIES(B0.0,P),IMPLIES(NOT(B0.0),P)),AND(IMPLIES(B0.0,wp(Sthen,ConstantPrdicate(true))),IMPLIES(NOT(B0.0),wp(Selse,ConstantPrdicate(true)))))(s);
+			AND(AND(IMPLIES(B0,P),IMPLIES(NOT(B0),P)),AND(IMPLIES(B0,wp(Sthen,ConstantPrdicate(true))),IMPLIES(NOT(B0),wp(Selse,ConstantPrdicate(true))))).0(s);
 			== {/* pred. calc.: [Y => Z) && (!Y => Z) == Z] */}
-			AND(P,AND(IMPLIES(B0.0,wp(Sthen,ConstantPrdicate(true))),IMPLIES(NOT(B0.0),wp(Selse,ConstantPrdicate(true)))))(s);
+			AND(P,AND(IMPLIES(B0,wp(Sthen,ConstantPrdicate(true))),IMPLIES(NOT(B0),wp(Selse,ConstantPrdicate(true))))).0(s);
 			== {/* wp definition of IF */}
-			AND(P,wp(IF(B0,Sthen,Selse),ConstantPrdicate(true)))(s);
+			AND(P,wp(IF(B0,Sthen,Selse),ConstantPrdicate(true))).0(s);
 			== {/* IF definition */}
-			AND(P,wp(S,ConstantPrdicate(true)))(s);
+			AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
-		case DO(B,S1) => forall s: State { calc {
-		
+		case DO(B,S1) => /*forall s: State { calc {
+		wp(S,P)(s);
+		== {}
+		AND(P, wp(S,ConstantPrdicate(true)))(s);
 		}
-		}
+		}*/
+		assume EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPrdicate(true))));
 		case LocalDeclaration(L,S1) => forall s: State { calc {
-			wp(S,P)(s);
+			wp(S,P).0(s);
 			== //{assert vars(P) !! setOf(L);}
-			wp(S1,P)(s);
+			wp(S1,P).0(s);
 			== //{assert def(S) !! vars(P);}
-			AND(P, wp(S1,ConstantPrdicate(true)))(s);
+			AND(P, wp(S1,ConstantPrdicate(true))).0(s);
 			== //{ vars(ConstantPrdicate(true)) = XX;} //TODO 26/11/16: pharse this
-			AND(P, wp(S,ConstantPrdicate(true)))(s); 
+			AND(P, wp(S,ConstantPrdicate(true))).0(s); 
 		}
 		}
 		case Assignment(LHS, RHS) => forall s: State { calc {
-		(AND(P,wp(S,ConstantPrdicate(true))))(s);
+		(AND(P,wp(S,ConstantPrdicate(true)))).0(s);
 		== {/* wp of assignment */}
-		(AND(P,sub(ConstantPrdicate(true), LHS, RHS)))(s);
+		(AND(P,sub(ConstantPrdicate(true), LHS, RHS))).0(s);
 		== {assert setOf(LHS) !! vars(ConstantPrdicate(true));}
-		(AND(P,ConstantPrdicate(true)))(s);
+		(AND(P,ConstantPrdicate(true))).0(s);
 		== {/* identity element of ^ */}
-		P(s);
+		P.0(s);
 		== {assert setOf(LHS) !! vars(P);Dummy(P,LHS,RHS,s);}
-		sub(P, LHS, RHS)(s);
+		sub(P, LHS, RHS).0(s);
 		== {/* wp of assignment */}
-		wp(S,P)(s);
+		wp(S,P).0(s);
 		}
 		}		
 	}
@@ -880,10 +888,10 @@ lemma RE3( S: Statement,P: Predicate)
 
 lemma Dummy(P: Predicate,LHS: seq<Variable>, RHS: seq<Expression>,s: State)
 requires setOf(LHS) !! vars(P)
-requires P.requires(s)
+requires P.0.requires(s)
 requires |LHS| == |RHS|
-requires sub(P, LHS, RHS).requires(s)
-ensures P(s) == sub(P, LHS, RHS)(s)
+requires sub(P, LHS, RHS).0.requires(s)
+ensures P.0(s) == sub(P, LHS, RHS).0(s)
 
 //TODO Lemma for vars(P) !! setOf(L)
 

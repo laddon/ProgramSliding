@@ -682,6 +682,10 @@ lemma ConjWp(S: Statement, P1: Predicate, P2: Predicate)
 requires Valid(S)
 ensures  EquivalentPredicates(wp(S,AND(P1,P2)),AND(wp(S,P1),wp(S,P2)))
 
+lemma LocalDecStrangers(S: Statement,P: Predicate)
+requires S.LocalDeclaration? 
+ensures S.LocalDeclaration? ==> vars(P) !! setOf(S.L)
+
 lemma RE1(P: Predicate, S: Statement)
 	requires Valid(S)
 	requires isUniversallyDisjunctive(wp(S,P))
@@ -701,9 +705,7 @@ lemma RE1(P: Predicate, S: Statement)
 
 lemma RE2( S: Statement,P: Predicate)
 	requires Valid(S)
-	//requires S.LocalDeclaration? ==> setOf(L) !! vars(P)
 	ensures vars(wp(S,P)) <= vars(P) - ddef(S) + input(S)
-	//ensures S.LocalDeclaration? ==> vars(wp(SeqComp(L,S),P)) <= vars(P) - ddef(SeqComp(L,S)) + input(SeqComp(L,S))
 {
 	match S {
 		case Assignment(LHS, RHS) =>  calc {
@@ -782,11 +784,9 @@ lemma RE2( S: Statement,P: Predicate)
 }
 
 lemma RE3( S: Statement,P: Predicate)
-	//requires !S.Skip?
 	requires  def(S) !! vars(P)
 	requires Valid(S)
 	ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPrdicate(true))))
-   //ensures S.LocalDeclaration? ==> wp(S,P) == AND(P, wp(S,ConstantPrdicate(true)))
 {
    
 	match S {
@@ -800,6 +800,7 @@ lemma RE3( S: Statement,P: Predicate)
 		AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
+
 		case SeqComp(S1, S2) => forall s: State { calc {
 		wp(S,P).0(s);
 		== {}
@@ -824,6 +825,7 @@ lemma RE3( S: Statement,P: Predicate)
 		AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
+
 		case IF(B0, Sthen, Selse) => forall s: State { calc {
 			wp(S,P).0(s);
 			== {/* IF definition */}
@@ -848,6 +850,7 @@ lemma RE3( S: Statement,P: Predicate)
 			AND(P,wp(S,ConstantPrdicate(true))).0(s);
 		}
 		}
+
 		case DO(B,S1) => /*forall s: State { calc {
 		wp(S,P)(s);
 		== {}
@@ -855,16 +858,18 @@ lemma RE3( S: Statement,P: Predicate)
 		}
 		}*/
 		assume EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPrdicate(true))));
+		
 		case LocalDeclaration(L,S1) => forall s: State { calc {
 			wp(S,P).0(s);
-			== //{assert vars(P) !! setOf(L);}
+			== {assert setOf(L) !! vars(P) by {LocalDecStrangers(S,P);}}
 			wp(S1,P).0(s);
-			== //{assert def(S1) !! vars(P);}
+			== {assert vars(P) !! def(S1) by {assert def(S) !! vars(P);assert setOf(L) !! vars(P) by {LocalDecStrangers(S,P); }}RE3(S1,P);/**/}
 			AND(P, wp(S1,ConstantPrdicate(true))).0(s);
 			== //{ vars(ConstantPrdicate(true)) = XX;} //TODO 26/11/16: pharse this
 			AND(P, wp(S,ConstantPrdicate(true))).0(s); 
 		}
 		}
+		
 		case Assignment(LHS, RHS) => forall s: State { calc {
 		(AND(P,wp(S,ConstantPrdicate(true)))).0(s);
 		== {/* wp of assignment */}
@@ -889,7 +894,6 @@ requires |LHS| == |RHS|
 requires sub(P, LHS, RHS).0.requires(s)
 ensures P.0(s) == sub(P, LHS, RHS).0(s)
 
-//TODO Lemma for vars(P) !! setOf(L)
 
 lemma RE4(S: Statement)
 //	requires ddef(S) <= def(S)

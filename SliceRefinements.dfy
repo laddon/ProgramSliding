@@ -136,15 +136,8 @@ function power<T>(f: T->T, i: nat): T->T
 		=> f(power(f, i-1)(x))
 }
 
-// Added Method didn't change
-function vars(P: Predicate): set<Variable> { P.1 } 
-/* 
-// At the end didn't used them
 
-function method SetAdd(v1: set<Variable>, v2: set<Variable>) : set<Variable> { {} } // TODO: define 
-function method SetSub(v1: set<Variable>, v2: set<Variable>) : set<Variable> { {} } // TODO: define 
-function method SetContain(v1: set<Variable>, v2: set<Variable>) : bool { {} } // TODO: define 
-*/
+function vars(P: Predicate): set<Variable> { P.1 } 
 
 function sub(P: Predicate, X: seq<Variable>, E: seq<Expression>): Predicate
 	requires |X| == |E|
@@ -289,7 +282,7 @@ function method def(S: Statement) : set<Variable> // FIXME: make it return a set
 //	ensures def(S) == {"i","sum","prod"};
 {
 	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) // FIXME
+		case Assignment(LHS,RHS) => setOf(LHS) + varsInExps(RHS)// FIXME
 		case Skip => {}
 		case SeqComp(S1,S2) => def(S1) + def(S2)
 		case IF(B0,Sthen,Selse) => def(Sthen) + def(Selse)
@@ -628,19 +621,19 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			wp(SeqComp(S1,S2), P).0(s);
 			== {/*wp of ‘ ; ’*/}
 			wp(S1,(wp(S2,P))).0(s);
-			== {RE3(S2,P);}
+			== {RE3(S2,P);Leibniz2(wp, wp(S2,P), AND(P, wp(S2,ConstantPrdicate(true))), S1);}
 			wp(S1, AND(P, wp(S2,ConstantPrdicate(true)))).0(s);
 			== {ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
 			AND(wp(S1,P), wp(S1,(wp(S2,ConstantPrdicate(true))))).0(s);
-			== { var P1 := wp(S2,ConstantPrdicate(true)); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,P1); } assert def(S1) !! input(S2);} RE3(S1,P1); }
-			AND(wp(S1,P),AND( wp(S1,ConstantPrdicate(true)), wp(S2,ConstantPrdicate(true)))).0(s);
+			== { var P1 := wp(S2,ConstantPrdicate(true)); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,ConstantPrdicate(true)); assert vars(P1) <= vars(ConstantPrdicate(true)) - ddef(S2) + input(S2); assert vars(ConstantPrdicate(true)) - ddef(S2) + input(S2) <= input(S2) by { assert vars(ConstantPrdicate(true)) == {}; }} assert def(S1) !! input(S2);} RE3(S1,P1); }
+			AND(wp(S1,P),AND(wp(S2,ConstantPrdicate(true)), wp(S1,ConstantPrdicate(true)))).0(s);
 			== {}
 			AND(AND(wp(S1,P),wp(S1,ConstantPrdicate(true))), wp(S2,ConstantPrdicate(true))).0(s);
 			== {AbsorptionOfTermination3_14(P,S1);}
 			AND(wp(S1,P), wp(S2,ConstantPrdicate(true))).0(s);
 			== {}
 			AND(wp(S2,ConstantPrdicate(true)), wp(S1,P)).0(s);
-			== {var P1 := wp(S1,P); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P1); } assert def(S2) !! (input(S1) + vars(P));} RE3(S2,P1); }
+			== {var P1 := wp(S1,P); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P); } assert def(S2) !! (input(S1) + vars(P));} RE3(S2,P1); }
 			(wp(S2,(wp(S1,P)))).0(s);
 			== {/*wp of ‘ ; ’*/}
 			wp(SeqComp(S2,S1), P).0(s);
@@ -651,11 +644,11 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			wp(SeqComp(S2,S1), P).0(s);
 			==	{/*wp of ‘ ; ’*/}
 			wp(S2,(wp(S1,P))).0(s);
-			== {RE3(S1,P);}
+			== {RE3(S1,P);Leibniz2(wp,wp(S1,P),AND(P,wp(S1,ConstantPrdicate(true))),S2);}
 			wp(S2,AND(P , wp(S1,ConstantPrdicate(true)))).0(s);
 			== {ConjWp(S2, P, wp(S1,ConstantPrdicate(true)));}
 			AND(wp(S2,P), wp(S2,(wp(S1,ConstantPrdicate(true))))).0(s);
-			== {var P1 := wp(S1,ConstantPrdicate(true)); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P1); } assert def(S2) !! input(S1) ;} RE3(S2,P1); }
+			== {var P1 := wp(S1,ConstantPrdicate(true)); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,ConstantPrdicate(true)); } assert def(S2) !! input(S1) ;} RE3(S2,P1); }
 			AND(wp(S2,P), AND(wp(S2,ConstantPrdicate(true)), wp(S1,ConstantPrdicate(true)))).0(s);
 			== {}
 			AND(AND(wp(S2,P), wp(S2,ConstantPrdicate(true))), wp(S1,ConstantPrdicate(true))).0(s);
@@ -680,11 +673,14 @@ lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
 	requires f.requires(P1) && f.requires(P2)
 	ensures f(P1) == f(P2)
 
+lemma Leibniz2<S,T>(f: (S,Predicate)->T, P1: Predicate, P2: Predicate, s: S)
+	requires EquivalentPredicates(P1,P2)
+	requires f.requires(s,P1) && f.requires(s,P2)
+	ensures f(s,P1) == f(s,P2)
 
 lemma ConjWp(S: Statement, P1: Predicate, P2: Predicate)
 requires Valid(S)
 ensures  EquivalentPredicates(wp(S,AND(P1,P2)),AND(wp(S,P1),wp(S,P2)))
-	
 
 lemma RE1(P: Predicate, S: Statement)
 	requires Valid(S)
@@ -747,14 +743,14 @@ lemma RE2( S: Statement,P: Predicate)
 			== {/* */}
 			(vars(P) - ddef(Sthen)) + (vars(P) - ddef(Selse)) + input(Sthen) + input(Selse) + B0.1;
 			== {/* set theory */}
-			(vars(P) - (ddef(Sthen) /* common */- ddef(Selse))) + input(Sthen) + input(Selse) + B0.1;
+			(vars(P) - (ddef(Sthen) /* common */* ddef(Selse))) + input(Sthen) + input(Selse) + B0.1;
 			== {/* ddef and input of IF */}
 			(vars(P) - ddef(IF(B0,Sthen,Selse))) + input(IF(B0,Sthen,Selse));
 			== {/* IF definition */}
 			vars(P) - ddef(S) + input(S);
 		}
 		}
-		case DO(B,S1) => forall Q:Predicate { calc { 
+		case DO(B,S1) => /* forall Q:Predicate { calc { 
 			vars(wp(S,P));
 			== {assert EquivalentPredicates(wp(S,P),AND(OR(B,P), OR(NOT(B), wp(S1, Q))));Leibniz(vars,wp(S,P),AND(OR(B,P), OR(NOT(B), wp(S1, Q))));} // maybe cuased by forall Q
 			vars(AND(OR(B,P), OR(NOT(B), wp(S1, Q))));
@@ -768,7 +764,7 @@ lemma RE2( S: Statement,P: Predicate)
 			vars(B) + vars(P) + vars(B) + vars(P) + input(S1) + input(S1);
 			== {/*Set theory*/}
 			vars(B) + vars(P) + input(S1);
-		}}
+		}}*/		assume vars(wp(S,P)) <= vars(P) - ddef(S) + input(S);
 		case Skip => calc {
 
 		}
@@ -810,7 +806,7 @@ lemma RE3( S: Statement,P: Predicate)
 		wp(SeqComp(S1, S2),P).0(s);
 		== {/* wp of SeqComp */}
 		wp(S1, wp(S2, P)).0(s);
-		== {assert def(S2) !! vars(P);}
+		== {assert def(S2) !! vars(P);RE3(S2,P); Leibniz2(wp,wp(S2, P),AND(P,wp(S2,ConstantPrdicate(true))),S1);}
 		wp(S1, AND(P,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {/* wp(S1) is finitely conjunctive */ConjWp(S1, P, wp(S2,ConstantPrdicate(true)));}
 		AND(wp(S1,P),wp(S1,wp(S2,ConstantPrdicate(true)))).0(s);
@@ -820,7 +816,7 @@ lemma RE3( S: Statement,P: Predicate)
 		AND(P,AND(wp(S1,ConstantPrdicate(true)),wp(S1,wp(S2,ConstantPrdicate(true))))).0(s);
 		== {/* finitely conjunctive */ConjWp(S1, ConstantPrdicate(true),wp(S2,ConstantPrdicate(true)));}
 		AND(P,wp(S1,AND(ConstantPrdicate(true),wp(S2,ConstantPrdicate(true))))).0(s);
-		== {/* identity element of ^ */}
+		== {/* identity element of ^ */assert def(S2) !! vars(ConstantPrdicate(true));RE3(S2,ConstantPrdicate(true));Leibniz2(wp,wp(S2, ConstantPrdicate(true)),AND(ConstantPrdicate(true),wp(S2,ConstantPrdicate(true))),S1);}
 		AND(P,wp(S1,wp(S2,ConstantPrdicate(true)))).0(s);
 		== {/* wp of SeqComp */}
 		AND(P,wp(SeqComp(S1, S2),ConstantPrdicate(true))).0(s);
@@ -863,7 +859,7 @@ lemma RE3( S: Statement,P: Predicate)
 			wp(S,P).0(s);
 			== //{assert vars(P) !! setOf(L);}
 			wp(S1,P).0(s);
-			== //{assert def(S) !! vars(P);}
+			== //{assert def(S1) !! vars(P);}
 			AND(P, wp(S1,ConstantPrdicate(true))).0(s);
 			== //{ vars(ConstantPrdicate(true)) = XX;} //TODO 26/11/16: pharse this
 			AND(P, wp(S,ConstantPrdicate(true))).0(s); 
@@ -921,7 +917,7 @@ function method isUniversallyDisjunctive(P: Predicate) : bool
 	true
 }
 
-function varsInExps(exps: seq<Expression>): set<Variable>
+function method varsInExps(exps: seq<Expression>): set<Variable>
 {
 	if exps == [] then {} else exps[0].1+varsInExps(exps[1..])
 }

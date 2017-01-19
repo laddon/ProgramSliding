@@ -137,8 +137,7 @@ function power<T>(f: T->T, i: nat): T->T
 }
 
 // Added Method didn't change
-function vars(P: Predicate): set<Variable> { {} } // TODO: define all legal expressions and then this here
-
+function vars(P: Predicate): set<Variable> { P.1 } 
 /* 
 // At the end didn't used them
 
@@ -739,8 +738,8 @@ lemma RE2( S: Statement,P: Predicate)
 			vars(wp(S,P));
 			== {/* IF definition */}
 			vars(wp(IF(B0, Sthen, Selse),P));
-			== {/* wp definitionof IF */}
-			vars(AND(IMPLIES((B0.0,B0.1),wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));
+			== {/* wp definitionof IF */Leibniz(vars,wp(IF(B0, Sthen, Selse),P),AND(IMPLIES(B0,wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));}
+			vars(AND(IMPLIES(B0,wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));
 			== {/* def. of glob; glob.B = glob.(¬B) */}
 			B0.1 + vars(wp(Sthen,P)) + vars(wp(Selse,P));
 			<= {/* proviso, twice */}
@@ -756,8 +755,8 @@ lemma RE2( S: Statement,P: Predicate)
 		}
 		}
 		case DO(B,S1) => forall Q:Predicate { calc { 
-			vars(wp(S1,P));
-			== {}
+			vars(wp(S,P));
+			== {assert EquivalentPredicates(wp(S,P),AND(OR(B,P), OR(NOT(B), wp(S1, Q))));Leibniz(vars,wp(S,P),AND(OR(B,P), OR(NOT(B), wp(S1, Q))));} // maybe cuased by forall Q
 			vars(AND(OR(B,P), OR(NOT(B), wp(S1, Q))));
 			== {}
 			vars(B) + vars(P) + vars(wp(S1, Q));
@@ -773,15 +772,16 @@ lemma RE2( S: Statement,P: Predicate)
 		case Skip => calc {
 
 		}
-		/*case LocalDeclaration(L,S1) => calc {
+		case LocalDeclaration(L,S0) => /*calc {
 			vars(wp(S,P));
 			== {/* wp definition of LocalDeclaration */}
-			vars(wp(S1,P));
+			vars(wp(S0,P));
 			<=  {/*proviso and property of ‘\’*/} 
-			vars(P) - ddef(S1) + input(S1);
+			vars(P) - ddef(S0) + input(S0);
 			== {/*assert setOf(L) !! vars(P);*/}
 			vars(P) - ddef(S) + input(S);
-		}*/
+		} */ 
+		assume vars(wp(S,P)) <= vars(P) - ddef(S) + input(S);
 	}
 }
 

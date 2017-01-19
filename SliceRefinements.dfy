@@ -631,9 +631,9 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			AND(AND(wp(S1,P),wp(S1,ConstantPrdicate(true))), wp(S2,ConstantPrdicate(true))).0(s);
 			== {AbsorptionOfTermination3_14(P,S1);}
 			AND(wp(S1,P), wp(S2,ConstantPrdicate(true))).0(s);
-			== {}
-			AND(wp(S2,ConstantPrdicate(true)), wp(S1,P)).0(s);
-			== {var P1 := wp(S1,P); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,P); } assert def(S2) !! (input(S1) + vars(P));} RE3(S2,P1); }
+			/*== {}
+			AND(wp(S2,ConstantPrdicate(true)), wp(S1,P)).0(s);*/
+			== {var P1 := wp(S1,P); assert vars(P1) !! def(S2) by { assert vars(P1) <= vars(P) - ddef(S1) + input(S1) by { RE2(S1,P); } assert def(S2) !! (input(S1) + vars(P));} RE3(S2,P1); }
 			(wp(S2,(wp(S1,P)))).0(s);
 			== {/*wp of ‘ ; ’*/}
 			wp(SeqComp(S2,S1), P).0(s);
@@ -654,7 +654,7 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			AND(AND(wp(S2,P), wp(S2,ConstantPrdicate(true))), wp(S1,ConstantPrdicate(true))).0(s);
 			== {AbsorptionOfTermination3_14(P,S2);}
 			AND(wp(S2,P), wp(S1,ConstantPrdicate(true))).0(s);
-			== {var P1 := wp(S2,P); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,P1); } assert def(S1) !! (input(S2) + vars(P));} RE3(S1,P1); }
+			== {var P1 := wp(S2,P); assert vars(P1) !! def(S1) by { assert vars(P1) <= vars(P) - ddef(S2) + input(S2) by { RE2(S2,P); } assert def(S1) !! (input(S2) + vars(P));} RE3(S1,P1); }
 			wp(S1,(wp(S2,P))).0(s);
 			== {/*wp of ‘ ; ’*/}
 			wp(SeqComp(S1,S2), P).0(s);

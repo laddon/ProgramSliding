@@ -278,11 +278,10 @@ function method freshInit(vars : seq<Variable>, ghost allVars : set<Variable>) :
 	if vars == [] then [] else ["i"+vars[0]] + freshInit(vars[1..],allVars+{"i"+vars[0]})
 }
 */
-function method def(S: Statement) : set<Variable> // FIXME: make it return a set
-//	ensures def(S) == {"i","sum","prod"};
+function method def(S: Statement) : set<Variable>
 {
 	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) //+ varsInExps(RHS)// FIXME
+		case Assignment(LHS,RHS) => setOf(LHS)
 		case Skip => {}
 		case SeqComp(S1,S2) => def(S1) + def(S2)
 		case IF(B0,Sthen,Selse) => def(Sthen) + def(Selse)
@@ -292,10 +291,9 @@ function method def(S: Statement) : set<Variable> // FIXME: make it return a set
 }
 
 function method ddef(S: Statement) : set<Variable>
-//	ensures ddef(S) == ["i","sum","prod"];
 {
 	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) // FIXME
+		case Assignment(LHS,RHS) => setOf(LHS)
 		case Skip => {}
 		case SeqComp(S1,S2) => ddef(S1) + ddef(S2)
 		case IF(B0,Sthen,Selse) => ddef(Sthen) * ddef(Selse)
@@ -305,7 +303,6 @@ function method ddef(S: Statement) : set<Variable>
 }
 
 function input(S: Statement) : set<Variable>
-//	ensures input(S) == ["i","sum","prod"];
 {
 	match S {
 		case Assignment(LHS,RHS) => varsInExps(RHS) 
@@ -320,7 +317,6 @@ function input(S: Statement) : set<Variable>
 
 
 function glob(S: Statement) : set<Variable>
-	//ensures glob(S) == setOf(def(S) + input(S));
 {
 	set x | x in def(S) + input(S)
 }
@@ -643,7 +639,7 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			(wp(S2,(wp(S1,P)))).0(s);
 			== {/*wp of ‘ ; ’*/}
 			wp(SeqComp(S2,S1), P).0(s);
-		}
+		} 
 	}
 	forall P: Predicate, s: State | vars(P) !! def(S1) {
 		calc {
@@ -666,8 +662,14 @@ lemma ProgramEquivalence5_7( S1: Statement, S2: Statement)
 			wp(SeqComp(S1,S2), P).0(s);
 		}
 	}
+	assert EquivalentStatments(SeqComp(S1,S2),SeqComp(S2,S1)) by {Corollary_5_6 (SeqComp(S1,S2), SeqComp(S2,S1), def(S1));}
 }
 
+lemma Corollary_5_6 (S: Statement, T: Statement, V: set<Variable>)
+requires Valid(S)
+requires Valid(T)
+ensures EquivalentStatments(S,T) <==> (forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s))
+&& (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) == wp(T, P).0(s))
 
 //TODO 1/12/16: RE1-5
 

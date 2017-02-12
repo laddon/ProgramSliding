@@ -886,10 +886,6 @@ lemma AbsorptionOfTermination3_14(P: Predicate,S: Statement)
 	}
 }
 
-lemma Equation_5_1(P: Predicate,V: set<Variable>)
-ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))
-
-
 lemma Theorem_4_1(S: Statement, T: Statement) 
 requires Valid(S)
 requires Valid(T)
@@ -915,15 +911,44 @@ requires Valid(S)
 requires Valid(T)
 ensures (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
 
+lemma Equation_5_1(P: Predicate,V: set<Variable>)
+ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))
+
+lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
+requires Valid(S)
+requires Valid(Sco)
+ensures (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+
 lemma Corollary_5_1 (S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(Sco)
 ensures SliceRefinement(S,Sco,V) == (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+{
+	forall s: State,P: Predicate
+	{
+		calc{
+		wp(S,P).0(s);
+		== {Equation_5_1(P,V);}
+		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
+		== {RE1(P,S);}
+		//wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
+		}
+	}
+}
 
 lemma Corollary_5_2 (S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(Sco)
-ensures CoSliceRefinement(S,Sco,V) == (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in (def(S)+def(Sco)-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+ensures CoSliceRefinement(S,Sco,V) == ((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in (def(S)+def(Sco)-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s))))
+{
+	calc {
+	CoSliceRefinement(S,Sco,V);
+	== {Corollary_5_3(S,Sco,V,(def(S) + def(Sco)) - V);}
+	SliceRefinement(S,Sco,(def(S) + def(Sco)) - V);
+	== {Corollary_5_1(S,Sco,(def(S) + def(Sco)) - V);}
+	((forall s:State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in (def(S)+def(Sco)-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s))));
+	}
+}
 
 lemma Corollary_5_3 (S: Statement, Sco: Statement, V: set<Variable>, CoV: set<Variable>)
 requires Valid(S)

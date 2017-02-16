@@ -644,6 +644,14 @@ requires |LHS| == |RHS|
 requires sub(P, LHS, RHS).0.requires(s)
 ensures P.0(s) == sub(P, LHS, RHS).0(s)
 
+lemma Equation_5_1(P: Predicate,V: set<Variable>)
+ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))
+
+lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
+requires Valid(S)
+requires Valid(Sco)
+ensures (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+
 // *** RE1-5 ***
 
 lemma RE1(P: Predicate, S: Statement)
@@ -910,14 +918,6 @@ lemma Lemma_4_2(S: Statement, T: Statement)
 requires Valid(S)
 requires Valid(T)
 ensures (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
-
-lemma Equation_5_1(P: Predicate,V: set<Variable>)
-ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))
-
-lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
-requires Valid(S)
-requires Valid(Sco)
-ensures (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
 
 lemma Corollary_5_1 (S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)

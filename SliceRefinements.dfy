@@ -650,14 +650,16 @@ ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) =
 lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(Sco)
-ensures (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+ensures (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
 
 // *** RE1-5 ***
 
-lemma RE1(P: Predicate, S: Statement)
+lemma RE1(S: Statement)
 requires Valid(S)
-requires isUniversallyDisjunctive(wp(S,P))
-	//ensures isUniversallyDisjunctive(wp(SeqComp(L,S),P))
+ensures forall W: set<Predicate>, P: Predicate, V: set<Variable> :: P in W ==> EquivalentPredicates( wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)), (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && (wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1))).0(s1), P.1)))
+
+//requires isUniversallyDisjunctive(wp(S,P))
+//ensures isUniversallyDisjunctive(wp(SeqComp(L,S),P))
 /*{
 	// NEED TO UNDERSTAND THEN FIX
 	/*calc{
@@ -897,7 +899,7 @@ lemma AbsorptionOfTermination3_14(P: Predicate,S: Statement)
 lemma Theorem_4_1(S: Statement, T: Statement) 
 requires Valid(S)
 requires Valid(T)
-ensures EquivalentStatments(S,T) <==> Refinement(S,T) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))
+ensures (EquivalentStatments(S,T)) <==> ((Refinement(S,T)) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))))
 {
 	 calc {
 		EquivalentStatments(S,T);
@@ -919,42 +921,47 @@ requires Valid(S)
 requires Valid(T)
 ensures (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
 
-lemma Corollary_5_1 (S: Statement, Sco: Statement, V: set<Variable>)
+lemma Theorem_5_1 (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
-requires Valid(Sco)
-ensures SliceRefinement(S,Sco,V) == (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in V && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+requires Valid(SV)
+ensures SliceRefinement(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 {
-	forall s: State,P: Predicate
+	forall s: State,P: Predicate | vars(P) <= V 
 	{
+		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1);
 		calc{
 		wp(S,P).0(s);
-		== {Equation_5_1(P,V);}
+		== {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,S);}
+		wp(S,P1).0(s);
+		== {}
 		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
-		== {RE1(P,S);}
-		//wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
+		== {RE1(S);}
+		(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && (wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1))).0(s1), P.1)).0(s);
+		== {}
+		(exists p: State :: P.0.requires(p) && P.0(p) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s));
 		}
 	}
 }
 
-lemma Corollary_5_2 (S: Statement, Sco: Statement, V: set<Variable>)
+lemma Corollary_5_2 (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
-requires Valid(Sco)
-ensures CoSliceRefinement(S,Sco,V) == ((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in (def(S)+def(Sco)-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s))))
+requires Valid(SV)
+ensures (CoSliceRefinement(S,SV,V)) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
 {
 	calc {
-	CoSliceRefinement(S,Sco,V);
-	== {Corollary_5_3(S,Sco,V,(def(S) + def(Sco)) - V);}
-	SliceRefinement(S,Sco,(def(S) + def(Sco)) - V);
-	== {Corollary_5_1(S,Sco,(def(S) + def(Sco)) - V);}
-	((forall s:State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(Sco,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable ,P: Predicate :: v in (def(S)+def(Sco)-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(Sco,P).0(s))));
+	CoSliceRefinement(S,SV,V);
+	== {Corollary_5_3(S,SV,V,(def(S) + def(SV)) - V);}
+	SliceRefinement(S,SV,(def(S) + def(SV)) - V);
+	== {Theorem_5_1(S,SV,(def(S) + def(SV)) - V);}
+	((forall s:State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))));
 	}
 }
 
-lemma Corollary_5_3 (S: Statement, Sco: Statement, V: set<Variable>, CoV: set<Variable>)
+lemma Corollary_5_3 (S: Statement, SV: Statement, V: set<Variable>, CoV: set<Variable>)
 requires Valid(S)
-requires Valid(Sco)
-requires CoV == (def(S) + def(Sco)) - V
-ensures CoSliceRefinement(S,Sco,V) == SliceRefinement(S,Sco,CoV)
+requires Valid(SV)
+requires CoV == (def(S) + def(SV)) - V
+ensures CoSliceRefinement(S,SV,V) == SliceRefinement(S,SV,CoV)
 
 lemma Corollary_5_4 (S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)
@@ -975,7 +982,7 @@ ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
 		== {}
 		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
 		&& (forall s: State ,v: Variable ,P: Predicate :: v in (def(S)+def(T)) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
-		== {/*(forall P: Predicate :: (vars(P) !! (V-def(S)+def(T)))); Corollary_5_5 (S, T,P));*/}
+		== {/*(forall P: Predicate :: (vars(P) !! (V-def(S)+def(T)))); Corollary_5_5(S, T,P);*/}
 		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
 		&& (forall s: State ,v: Variable ,P: Predicate :: v in (def(S)+def(T)) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)))
 		&& (forall s: State ,v: Variable ,P: Predicate :: v in (V-(def(S)+def(T))) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
@@ -987,13 +994,14 @@ ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
 		&& (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)))
 		&& (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(T))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
 		== {/*splitting the range; pred. calc.*/}
-		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
-		&& (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)))
-		&& (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
-		&& (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(T))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
-		== {Corollary_5_1(S,T,V);}
-		SliceRefinement(S,T,V) && (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
-		&& (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(T))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
+		((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
+		&& (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s))))
+		&& ((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
+		&& (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(T))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s))));
+		== {Theorem_5_1(S,T,V);}
+		SliceRefinement(S,T,V) 
+		&& ((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) 
+		&& (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(T))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(T,P).0(s))));
 		== {Corollary_5_2(S,T,V);}
 		SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V);
 		}
@@ -1036,15 +1044,22 @@ ensures EquivalentStatments(S,T) <==> (forall P: Predicate, s: State :: vars(P) 
 		== {Corollary_5_4(S,T,V);}
 		SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)));
 		== {/*SliceRefinement(S,T,V) == (forall P: Predicate,s: State :: (vars(P) <= V) ==> ((wp(S,P).0(s) ==> wp(T,P).0(s))));*/}
-		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) &&  CoSliceRefinement(S,T,V) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))));
+		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) 
+		&&  CoSliceRefinement(S,T,V) 
+		&& EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))));
 		== {/*CoSliceRefinement(S,T,V) == (forall P: Predicate,s: State :: (vars(P) <= V) ==> ((wp(S,P).0(s) ==> wp(T,P).0(s))))*/}
-		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) &&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))));
+		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) 
+		&&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s)) 
+		&& EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))));
 		=={/*def. of slice-refinement and co-slice-refinement*/ /*pred. calc. ((3.7), twice): the ranges are non-empty*/}
-		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))) &&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))));
+		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))) 
+		&&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))));
 		== { Lemma_4_2(S, T);}
-		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s)) &&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))));
+		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s)) 
+		&&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) ==> wp(T, P).0(s) && EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))));
 		== { Lemma_4_2(S, T);}
-		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s)) &&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) == wp(T, P).0(s)));
+		((forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s)) 
+		&&  (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) == wp(T, P).0(s)));
 		}
 }
 

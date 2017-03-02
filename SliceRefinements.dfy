@@ -654,9 +654,14 @@ ensures (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: Sta
 
 // *** RE1-5 ***
 
+function VarsOfPredicateSet(W: set<Predicate>): set<Variable>
+{
+	if W == {} then {} else var w :| w in W; w.1 + VarsOfPredicateSet(W-{w})
+}
+
 lemma RE1(S: Statement)
 requires Valid(S)
-ensures forall W: set<Predicate>, P: Predicate, V: set<Variable> :: P in W ==> EquivalentPredicates( wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)), (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && (wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1))).0(s1), P.1)))
+ensures forall W: set<Predicate> :: EquivalentPredicates( wp(S,((s1: State) reads * requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P.0.requires(s1) && P.0(s1), VarsOfPredicateSet(W))), (((s1: State) reads * requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P in W && wp.requires(S,P) && (wp(S,P)).0(s1), VarsOfPredicateSet(W))))
 
 //requires isUniversallyDisjunctive(wp(S,P))
 //ensures isUniversallyDisjunctive(wp(SeqComp(L,S),P))
@@ -929,14 +934,18 @@ ensures SliceRefinement(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicat
 	forall s: State,P: Predicate | vars(P) <= V 
 	{
 		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1);
+		var P2 := (p: State) => ((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1);
+		var P3 := (((s1: State) reads * requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
 		calc{
 		wp(S,P).0(s);
 		== {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,S);}
 		wp(S,P1).0(s);
 		== {}
 		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
-		== {RE1(S);}
-		(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && (wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1))).0(s1), P.1)).0(s);
+		== { assert EquivalentPredicates(P3,wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))) by {RE1(S);}} 
+		//(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))), P.1).0(s);
+		//=={}                                                                                              
+		  P3.0(s);
 		== {}
 		(exists p: State :: P.0.requires(p) && P.0(p) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s));
 		}

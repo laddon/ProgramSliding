@@ -955,9 +955,11 @@ requires Valid(S)
 requires Valid(T)
 ensures (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
 
+/*TODO : Complete 3 err*/
 lemma {:verify false} Theorem_5_1 (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
+ensures SliceRefinement(S,SV,V) ==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 ensures SliceRefinement(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 {
 	forall s: State,P: Predicate | vars(P) <= V 
@@ -987,7 +989,7 @@ ensures SliceRefinement(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicat
 	}
 }
 
-lemma {:verify false} Corollary_5_2 (S: Statement, SV: Statement, V: set<Variable>)
+lemma {:verify true} Corollary_5_2 (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 ensures (CoSliceRefinement(S,SV,V)) ==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
@@ -1007,8 +1009,52 @@ requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
 ensures CoSliceRefinement(S,SV,V) == SliceRefinement(S,SV,CoV)
+{
+	calc
+	{
+	CoSliceRefinement(S,SV,V);
+	== {Corollary_5_3Left(S,SV,V,CoV); Corollary_5_3Right(S,SV,V,CoV);}
+	SliceRefinement(S,SV,CoV);
+	}
+}
 
-lemma {:verify true} Corollary_5_4 (S: Statement, T: Statement, V: set<Variable>)
+
+lemma {:verify true} Corollary_5_3Left (S: Statement, SV: Statement, V: set<Variable>, CoV: set<Variable>)
+requires Valid(S)
+requires Valid(SV)
+requires CoV == (def(S) + def(SV)) - V
+ensures CoSliceRefinement(S,SV,V) ==> SliceRefinement(S,SV,CoV)
+{
+	calc{
+		CoSliceRefinement(S,SV,V);
+		==>  {}
+		SliceRefinement(S,SV,CoV);
+		}
+}
+
+/*TODO: Complete */
+lemma {:verify false} Corollary_5_3Right (S: Statement, SV: Statement, V: set<Variable>, CoV: set<Variable>)
+requires Valid(S)
+requires Valid(SV)
+requires CoV == (def(S) + def(SV)) - V
+ensures CoSliceRefinement(S,SV,V) <== SliceRefinement(S,SV,CoV)
+{
+	forall s: State, P: Predicate{
+		var CoV1 := vars(P) * CoV;
+		var ND := vars(P) - CoV;
+		var n1 := |CoV1|;
+		var n2 := |vars(P)|;
+		calc {
+			wp(S,P).0(s);
+			==> {}
+			wp(SV,P).0(s);
+		}
+	}
+}
+
+
+/*TODO : Complete 4 err*/
+lemma {:verify false} Corollary_5_4 (S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(T)
 ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
@@ -1076,7 +1122,9 @@ ensures forall s:State :: (wp(S,P)).0(s) ==> (wp(T,P)).0(s)
 	}
 }
 
-lemma {:verify true} Corollary_5_6 (S: Statement, T: Statement, V: set<Variable>)
+
+/*TODO : Complete 3 err */
+lemma {:verify false} Corollary_5_6 (S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(T)
 ensures EquivalentStatments(S,T) <==> (forall P: Predicate, s: State :: vars(P) <= V ==> wp(S, P).0(s) == wp(T, P).0(s))

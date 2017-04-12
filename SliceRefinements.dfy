@@ -757,17 +757,24 @@ ensures SliceRefinement(S,SV,V) ==> dummy7(S,SV,V)
 	}
 }
 
-/*TODO : Complete 3 err*/
+/*TODO : Complete 2 err*/
+/*TODO : break into V is empty and V isnot empty */
+/*TODO : add EMPTY type to V in order to use match+case */
 lemma {:verify false} Theorem_5_1Right (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 ensures SliceRefinement(S,SV,V) <== dummy7(S,SV,V)
 {
+	/*match V {
+		case EMPTY => true
+		case set<Variable> => { 
+		*/
 	forall s: State,P: Predicate | vars(P) <= V 
 	{
 		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1);
 		var P2 := (p: State) => (((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v])),P.1);
 		var P3 := (((s1: State) reads * requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
+		var P4 := (((s2: State) reads * requires P.0.requires(s2)=> exists p1: State :: P.0.requires(p1) && P.0(p1) && wp.requires(SV,P2(p1)) && (wp(SV,P2(p1)).0(s2))),P.1);
 		calc{
 		wp(S,P).0(s);
 		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,S);}
@@ -784,10 +791,26 @@ ensures SliceRefinement(S,SV,V) <== dummy7(S,SV,V)
 		//(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))), P.1).0(s);
 		//=={}                                                                                              
 		P3.0(s);
+		/*==> {/*assume EquivalentPredicates(wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3);*/}
+		((s1: State) reads * requires P.0.requires(s1)=>exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s1),P.1).0(s);
+		*/==> {Equation_5_2(S,SV,V);}
+		P4.0(s);
+		==> {assume EquivalentPredicates(wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P4) /*by { RE1(S,{P/*2(p)*/});}*/;} 
+		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
+		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]) == (P2(p).0(s1));
+			var P6 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1); 
+			var P7 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
+			assert EquivalentPredicates(P6,P7);
+			Leibniz2(wp, P6,P7, SV);}
+		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
 		==> {}
-		(exists p: State :: P.0.requires(p) && P.0(p) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s));
+		wp(SV,P1).0(s);
+		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,SV);}
+		wp(SV,P).0(s);
 		}
 	}
+	/*}
+	}*/
 }
 
 predicate dummy3(S: Statement, SV: Statement, V: set<Variable>)

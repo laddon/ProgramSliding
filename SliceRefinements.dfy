@@ -421,12 +421,12 @@ requires sub(P, LHS, RHS).0.requires(s)
 ensures P.0(s) == sub(P, LHS, RHS).0(s)
 
 lemma Equation_5_1(P: Predicate,V: set<Variable>)
-ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1))
+ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1))
 
 lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(Sco)
-ensures (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
+ensures (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(Sco,P).0(s)))
 
 //============================================================
 //					*** RE1-RE5 ***
@@ -663,6 +663,8 @@ lemma RE5(S: Statement)
 	}
 }
 */
+ 
+//TODO: pointwisePredicate -< dummmy 6 (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,x: Variable :: x in (V) && x in s ==> var P := ((s1: state) /* requires (x in s1)*/ => s[x] == s1[x] ,{x}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
 //============================================================
 //					*** THEOREMS ***
@@ -723,13 +725,13 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 }
 
 lemma dummy7Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
-ensures dummy7(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+ensures dummy7(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
 
 lemma {:verify true} Theorem_5_1 (S: Statement, SV: Statement, V: set<Variable>)
@@ -771,7 +773,7 @@ ensures SliceRefinement(S,SV,V) <== dummy7(S,SV,V)
 		*/
 	forall s: State,P: Predicate | vars(P) <= V 
 	{
-		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1);
+		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1);
 		var P2 := (p: State) => (((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v])),P.1);
 		var P3 := (((s1: State) reads * requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
 		var P4 := (((s2: State) reads * requires P.0.requires(s2)=> exists p1: State :: P.0.requires(p1) && P.0(p1) && wp.requires(SV,P2(p1)) && (wp(SV,P2(p1)).0(s2))),P.1);
@@ -780,9 +782,9 @@ ensures SliceRefinement(S,SV,V) <== dummy7(S,SV,V)
 		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,S);}
 		wp(S,P1).0(s);
 		==> {}
-		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
-		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]) == (P2(p).0(s1));
-			var P4 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1); 
+		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
+		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]) == (P2(p).0(s1));
+			var P4 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
 			var P5 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
 			assert EquivalentPredicates(P4,P5);
 			Leibniz2(wp, P4,P5, S);}
@@ -793,16 +795,16 @@ ensures SliceRefinement(S,SV,V) <== dummy7(S,SV,V)
 		P3.0(s);
 		/*==> {/*assume EquivalentPredicates(wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3);*/}
 		((s1: State) reads * requires P.0.requires(s1)=>exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s1),P.1).0(s);
-		*/==> {Equation_5_2(S,SV,V);}
+		*/==> {Equation_5_2(S,SV,V);/*leibniz3 - forall ==>*/}
 		P4.0(s);
 		==> {assume EquivalentPredicates(wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P4) /*by { RE1(S,{P/*2(p)*/});}*/;} 
 		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
-		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]) == (P2(p).0(s1));
-			var P6 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1); 
+		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]) == (P2(p).0(s1));
+			var P6 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
 			var P7 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
 			assert EquivalentPredicates(P6,P7);
 			Leibniz2(wp, P6,P7, SV);}
-		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && s1[v] == p[v]), P.1)).0(s);
+		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
 		==> {}
 		wp(SV,P1).0(s);
 		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,SV);}
@@ -818,14 +820,14 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
+	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
 }
 
 lemma dummy3Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
-ensures dummy3(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
-
+ensures dummy3(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))))
+						//    (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));																			
 
 lemma {:verify true} Corollary_5_2 (S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
@@ -837,7 +839,7 @@ ensures (CoSliceRefinement(S,SV,V)) <==> dummy3(S,SV,V)
 	== {Corollary_5_3(S,SV,V,(def(S) + def(SV)) - V);}
 	SliceRefinement(S,SV,(def(S) + def(SV)) - V);
 	== {Theorem_5_1(S,SV,(def(S) + def(SV)) - V);dummy7Lemma(S,SV,(def(S) + def(SV)) - V);}
-	((forall s:State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))));
+	((forall s:State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))));
 	== {dummy3Lemma(S,SV,V);}
 	dummy3(S,SV,V);
 	}
@@ -899,15 +901,15 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V+def(S)+def(SV)) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> var P := (((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 }
 
 lemma dummy4Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
-ensures dummy4(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V+def(S)+def(SV)) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+ensures dummy4(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
-// TODO: complete 4 errr
+// TODO: complete 3 error : 2 assemption to use 5.5 -> why is it valid to all ranges?
 lemma {:verify false} dummy4AllRange(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
@@ -917,15 +919,37 @@ ensures dummy3(S,SV,{}) <==>  dummy4(S,SV,V)
 	calc {
 	dummy3(S,SV,{});
 	== {dummy3Lemma(S,SV,{});}
-	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-{}) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))));
+	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-{}) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))));
 	== {}
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (def(S)+def(SV)-{}) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s))));
-	== {var P:=  (((s1: State) reads *  =>  v in (def(S)+def(SV)-{}) && v in s && v in s1 && s1[v] == s[v]),{v});Corollary_5_5(S, SV,P);}
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V+def(S)+def(SV)) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(SV)) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))));
+	== {var P:=  (((s1: State) reads *  =>  v in (def(S)+def(SV)-{}) && v in s && v in s1 && s[v] == s1[v]),{v}); assert vars(P) !! (def(S) + def(SV)); assert (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))); Corollary_5_5(S, SV,P);}
+	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(SV)) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))) && (forall s: State ,v: Variable :: v in (V - (def(S)+def(SV))) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+	== {}
+	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V + def(S)+def(SV)) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))));
 	== {dummy4Lemma(S,SV,V);}
 	dummy4(S,SV,V);
 	}
 	}
+}
+
+// TODO - there might be an error in the proofment the ranges is OR not AND 
+lemma {:verify false} dummy4dummy5Lemma(S: Statement, SV: Statement, V: set<Variable>)
+requires Valid(S)
+requires Valid(SV)
+ensures dummy4(S,SV,V) <==> dummy5(S,SV,V)
+{
+	calc {
+		dummy4(S,SV,V);
+		== {dummy4Lemma(S,SV,V);}
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+		== {}
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: (v in (V) || v in (def(S)+def(SV))) && v in s  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+		== {}
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))) && (forall s: State ,v: Variable :: v in ((def(S)+def(SV))-V)  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+		== {dummy5Lemma(S,SV,V);}
+		dummy5(S,SV,V);
+	}
+
 }
 
 predicate dummy5(S: Statement, SV: Statement, V: set<Variable>)
@@ -933,13 +957,13 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s))) && (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(SV))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))) && (forall s: State ,v: Variable :: v in ((def(S)+def(SV))-V)  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 }
 
 lemma dummy5Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
-ensures dummy5(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s))) && (forall s: State ,v: Variable ,P: Predicate :: v in ((def(S)+def(SV))-V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+ensures dummy5(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s))) && (forall s: State ,v: Variable :: v in ((def(S)+def(SV))-V)  ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
 lemma dummy5dummy6Lemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
 requires Valid(S)
@@ -954,7 +978,7 @@ requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 }
 
 predicate CoDummy6(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
@@ -963,7 +987,7 @@ requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (CoV) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)))
+	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (CoV) && v in s ==> var P := ((s1: State)  reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 }
 
 
@@ -971,16 +995,16 @@ lemma dummy6Lemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variabl
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
-ensures dummy6(S,SV,V,CoV) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s))) 
+ensures dummy6(S,SV,V,CoV) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
 lemma CoDummy6Lemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
-ensures CoDummy6(S,SV,V,CoV) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (CoV) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s))) 
+ensures CoDummy6(S,SV,V,CoV) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (CoV) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))
 
 // TODO: Complete 1 err
-lemma {:verify false} CoDummy6CoSliceRefinementLemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
+lemma {:verify true} CoDummy6CoSliceRefinementLemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S)+def(SV))-V
@@ -989,9 +1013,9 @@ ensures CoSliceRefinement(S,SV,V) <==> CoDummy6(S,SV,V,CoV)
 	calc {
 		CoDummy6(S,SV,V,CoV);
 		== {CoDummy6Lemma(S,SV,V,CoV);}
-		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (CoV) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (CoV) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
 		== {assert CoV == (def(S)+def(SV)-V);}
-		(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))));
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
 		== {dummy3Lemma(S,SV,V);}
 		dummy3(S,SV,V);
 		== {Corollary_5_2(S,SV,V);}
@@ -1000,7 +1024,7 @@ ensures CoSliceRefinement(S,SV,V) <==> CoDummy6(S,SV,V,CoV)
 }
 
 // TODO: Complete 1 err
-lemma {:verify false} dummy6SliceRefinementLemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
+lemma {:verify true} dummy6SliceRefinementLemma(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S)+def(SV))-V
@@ -1009,10 +1033,13 @@ ensures SliceRefinement(S,SV,V) <==> dummy6(S,SV,V,CoV)
 	calc {
 		dummy6(S,SV,V,CoV);
 		=={dummy6Lemma(S,SV,V,CoV);}
-		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ,P: Predicate :: v in (V) && v in P.1 ==> (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
 		== {}
-		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && s1[v] == s[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
-		== {Theorem_5_1(S,SV,V);}
+		(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V) && v in s ==> var P := ((s1: State) reads * => v in s1 && v in s && s[v] == s1[v],{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)));
+	//	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> var P:= (((s1: State) reads *  => v in s1 && v in s && s[v] == s1[v]),{v}); (wp(S,P).0(s) ==> wp(SV,P).0(s)))	
+		== {dummy7Lemma(S,SV,V);}
+		dummy7(S,SV,V);
+		=={Theorem_5_1(S,SV,V);}
 		SliceRefinement(S,SV,V);
 	}
 }
@@ -1034,9 +1061,9 @@ ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
 		dummy3(S,T,{});
 		== {dummy4AllRange(S,T,V);}
 		dummy4(S,T,V);
-		== {}
+		== {dummy4dummy5Lemma(S,T,V);}
 		dummy5(S,T,V);
-		== {}
+		== {dummy5dummy6Lemma(S,T,V,(def(S)+def(T))-V);}
 		dummy6(S,T,V,(def(S)+def(T))-V) && CoDummy6(S,T,V,(def(S)+def(T))-V);
 		== {dummy6SliceRefinementLemma(S,T,V,(def(S)+def(T))-V);CoDummy6CoSliceRefinementLemma(S,T,V,(def(S)+def(T))-V);}
 		SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V);

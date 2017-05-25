@@ -709,10 +709,48 @@ ensures (EquivalentStatments(S,T)) <==> ((Refinement(S,T)) && EquivalentPredicat
 	}
 }
 
-lemma {:verify true} Lemma_4_2(S: Statement, T: Statement)
+// TODO: complete 1 err
+lemma {:verify false} Lemma_4_2(S: Statement, T: Statement)
 requires Valid(S)
 requires Valid(T)
-ensures (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))))) <==> (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s))
+ensures  (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
+{
+	calc 
+	{
+		(forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s));
+		== {Lemma_4_2_Left(S,T);Lemma_4_2_Right(S,T);}
+		((forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))))));
+	}
+}
+
+lemma Lemma_4_2_Left(S: Statement, T: Statement)
+requires Valid(S)
+requires Valid(T)
+ensures  (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) ==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
+{
+	calc 
+	{
+		(forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s));
+		==> {}
+		((forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true))))));
+	}
+}
+
+lemma {:verify false} Lemma_4_2_Right(S: Statement, T: Statement)
+requires Valid(S)
+requires Valid(T)
+ensures  (forall P: Predicate, s: State :: wp(S,P).0(s) == wp(T,P).0(s)) <== (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
+{
+	forall s: State, P : Predicate
+	{
+		calc {
+		wp(S,P).0(s);
+		== {}
+		// definition of wlp
+
+		}
+	}
+}
 
 lemma {:verify true} Lemma_4_2inV(S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)

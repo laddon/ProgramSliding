@@ -8,9 +8,9 @@ datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
 type Expression = (State -> Value, set<Variable>)
-type BooleanExpression = (State -> bool, set<Variable>) // State->Value,set<Variable>
+type BooleanExpression = (State -> bool, set<Variable>) 
 type State = map<Variable, Value>
-type Predicate = (State -> bool, set<Variable>)//string
+type Predicate = (State -> bool, set<Variable>)
 
 
 //============================================================
@@ -21,7 +21,7 @@ predicate Valid(stmt: Statement) reads *
 {
 	match stmt {
 		case Skip => true
-		case Assignment(LHS,RHS) => ValidAssignments(LHS,RHS) 
+		case Assignment(LHS,RHS) => ValidAssignment(LHS,RHS) 
 		case SeqComp(S1,S2) => Valid(S1) && Valid(S2)
 		case IF(B0,Sthen,Selse) => 
 			(forall state: State :: B0.0.requires(state) /*&& B.0(state).Bool?*/) && 
@@ -30,19 +30,23 @@ predicate Valid(stmt: Statement) reads *
 			(forall state: State :: B.0.requires(state) /*&& B.0(state).Bool?*/) && Valid(Sloop)
 		case LocalDeclaration(L,S0) => Valid(S0)
 	} &&
-	forall state1: State, P: Predicate  :: P.0.requires(state1)
-
+	// TODO: FixMe
+	//(forall state1: State, P: Predicate  :: (forall v :: v in state1 ==> v in P.1) ==> P.0.requires(state1))
+	forall state1: State, P: Predicate  ::  P.0.requires(state1)
 }
 
-function ValidAssignments(LHS:  seq<Variable>, RHS: seq<Expression>) : bool 
+
+function ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>): bool 
 {
 	if (|LHS| != |RHS|) then false else true 
 }
 
+/*
 predicate method ValidAssignment(str: string)
 {
 	true // check ":=" with same-length lists to its left and right, the former of distinct variable names and the right of expressions
 }
+*/
 
 //============================================================
 //					*** PRINTING ***
@@ -142,7 +146,7 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case Skip => P
 		case Assignment(LHS,RHS) => sub(P, LHS, RHS)
 		case SeqComp(S1,S2) => wp(S1, wp(S2, P))
-		case IF(B0,Sthen,Selse) => var f := (state: State)
+		case IF(B0,Sthen,Selse) => var f:= (state: State)
 			reads *
 			requires B0.0.requires(state)
 			requires Valid(Sthen) && wp(Sthen, P).0.requires(state)
@@ -244,12 +248,18 @@ function input(S: Statement) : set<Variable>
 	}
 }
 
+function trigger<T>(x: T): bool
+{
+	true
+}
+
 function glob(S: Statement) : set<Variable>
 {
-	set x | x in def(S) + input(S)
+	set x | trigger(x) && x in def(S) + input(S)
 }
 
 function method setOf(s: seq<Variable>) : set<Variable>
+ensures forall v :: v in setOf(s) ==> v in s
 {
 	set x | x in s
 }

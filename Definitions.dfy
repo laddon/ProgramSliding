@@ -280,6 +280,15 @@ function method varsInExps(exps: seq<Expression>): set<Variable>
 	if exps == [] then {} else exps[0].1+varsInExps(exps[1..])
 }
 
+function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<Expression>)
+	ensures ValidAssignment(seqvars, res)
+{
+	if seqvars == [] then []
+	else 
+		([((s:State)requires(seqvars[0] in s)=>s[seqvars[0]], {seqvars[0]})] + seqVarToSeqExpr(seqvars[1..]))
+	
+}
+
 predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
 {
 	forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s)  

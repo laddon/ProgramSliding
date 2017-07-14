@@ -35,6 +35,18 @@ predicate Valid(stmt: Statement) reads *
 	forall state1: State, P: Predicate  ::  P.0.requires(state1)
 }
 
+predicate Core(stmt: Statement)
+{
+	match stmt {
+		case Skip => true
+		case Assignment(LHS, RHS) => true
+		case SeqComp(S1, S2) => Core(S1) && Core(S2)
+		case IF(B0,Sthen,Selse) => Core(Sthen) && Core(Selse)
+		case DO(B,Sloop) => Core(Sloop)
+		case LocalDeclaration(L,S0) => false
+		// case Live(L,S0) => false
+	}
+}
 
 function ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>): bool 
 {
@@ -256,6 +268,18 @@ function trigger<T>(x: T): bool
 function glob(S: Statement) : set<Variable>
 {
 	set x | trigger(x) && x in def(S) + input(S)
+}
+
+function allVars(S: Statement): set<Variable>
+{
+	match S {
+		case Skip => {}
+		case Assignment(LHS, RHS) => setOf(LHS)+varsInExps(RHS)
+		case SeqComp(S1, S2) => allVars(S1)+allVars(S2)
+		case IF(B0,Sthen,Selse) => B0.1+allVars(Sthen)+allVars(Selse)
+		case DO(B,S) => B.1 + allVars(S)
+		case LocalDeclaration(L,S0) => setOf(L)+allVars(S0)
+	}
 }
 
 function method setOf(s: seq<Variable>) : set<Variable>

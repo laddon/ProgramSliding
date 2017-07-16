@@ -104,6 +104,7 @@ ensures vars(wp(S,P)) <= vars(P) - ddef(S) + input(S)
 			== {LocalDecStrangers2(S,P);}
 			(vars(P) - ddef(S) + input(S));
 		} 
+		case Live(L,S0) => assume vars(wp(S,P)) <= vars(P) - ddef(S) + input(S);
 	}
 }
 
@@ -207,7 +208,9 @@ ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPredicate(true))))
 		== {/* wp of assignment */}
 		wp(S,P).0(s);
 		}
-		}		
+		}
+		
+		case Live(L, S0) => assume EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPredicate(true))));		
 	}
 }
 

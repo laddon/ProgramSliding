@@ -4,7 +4,7 @@
 
 datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip | SeqComp(S1: Statement, S2: Statement) | 
 		IF(B0: BooleanExpression, Sthen: Statement, Selse: Statement) | DO(B: BooleanExpression, Sloop: Statement) |
-		LocalDeclaration(L: seq<Variable>, S0: Statement)
+		LocalDeclaration(L: seq<Variable>, S0: Statement) | Live(L: seq<Variable>, S0: Statement)
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
 type Expression = (State -> Value, set<Variable>)
@@ -29,6 +29,7 @@ predicate Valid(stmt: Statement) reads *
 		case DO(B,Sloop) =>
 			(forall state: State :: B.0.requires(state) /*&& B.0(state).Bool?*/) && Valid(Sloop)
 		case LocalDeclaration(L,S0) => Valid(S0)
+		case Live(L, S0) => Valid(S0)
 	} &&
 	// TODO: FixMe
 	//(forall state1: State, P: Predicate  :: (forall v :: v in state1 ==> v in P.1) ==> P.0.requires(state1))
@@ -44,7 +45,7 @@ predicate Core(stmt: Statement)
 		case IF(B0,Sthen,Selse) => Core(Sthen) && Core(Selse)
 		case DO(B,Sloop) => Core(Sloop)
 		case LocalDeclaration(L,S0) => false
-		// case Live(L,S0) => false
+		case Live(L,S0) => false
 	}
 }
 
@@ -73,6 +74,7 @@ function method ToString(S: Statement) : string
 		case IF(B0,Sthen,Selse) => "if " + BooleanExpressionToString(B0) + " {" + ToString(Sthen) + " else " + ToString(Selse) + " } "
 		case DO(B,Sloop) => "while (" + BooleanExpressionToString(B) + ") { " + ToString(Sloop) + " } "
 		case LocalDeclaration(L,S0) => "{ var " + VariableListToString(L) + "; " + ToString(S0) + " } "
+		case Live(L,S0) => "{ var " + VariableListToString(L) + "; " + ToString(S0) + " } "
 	}
 }
 
@@ -185,6 +187,7 @@ function wp(stmt: Statement, P: Predicate): Predicate
 				(f,vars(P)-ddef(stmt)+input(stmt))
 					
 		case LocalDeclaration(L,S0) => wp(S0,P)
+		case Live(L,S0) => wp(S0,P)
 	}
 }
 
@@ -233,6 +236,7 @@ function method def(S: Statement) : set<Variable>
 		case IF(B0,Sthen,Selse) => def(Sthen) + def(Selse)
 		case DO(B,Sloop) => def(Sloop)
 		case LocalDeclaration(L,S0) => def(S0) - setOf(L)
+		case Live(L,S0) => def(S0) - setOf(L)
 	}
 }
 
@@ -245,6 +249,7 @@ function method ddef(S: Statement) : set<Variable>
 		case IF(B0,Sthen,Selse) => ddef(Sthen) * ddef(Selse)
 		case DO(B,S) => {}
 		case LocalDeclaration(L,S0) => ddef(S0) - setOf(L)
+		case Live(L,S0) => ddef(S0) - setOf(L)
 	}
 }
 
@@ -257,6 +262,7 @@ function input(S: Statement) : set<Variable>
 		case IF(B0,Sthen,Selse) => B0.1 + input(Sthen) + input(Selse)
 		case DO(B,S) => B.1 + input(S) 
 		case LocalDeclaration(L,S0) => input(S0) - setOf(L)
+		case Live(L,S0) => input(S0) - setOf(L)
 	}
 }
 
@@ -279,6 +285,7 @@ function allVars(S: Statement): set<Variable>
 		case IF(B0,Sthen,Selse) => B0.1+allVars(Sthen)+allVars(Selse)
 		case DO(B,S) => B.1 + allVars(S)
 		case LocalDeclaration(L,S0) => setOf(L)+allVars(S0)
+		case Live(L,S0) => setOf(L)+allVars(S0)
 	}
 }
 

@@ -35,7 +35,7 @@ ensures Valid(S')
 			DO(B', S'')
 
 		case LocalDeclaration(L, S0) => Skip // S is Core Statement
-		//case Live(L, S0) => Skip // S is Core Statement
+		case Live(L, S0) => Skip // S is Core Statement
 	}
 }
 

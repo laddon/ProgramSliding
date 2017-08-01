@@ -320,6 +320,16 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 	
 }
 
+function method {:verify false} fSetToSeq(s : set<Variable>) : (res: seq<Variable>)
+ensures |res| == |s|
+{
+if s == {} then []
+else
+	var v : Variable :| v in s;
+	[v] + fSetToSeq(s - {v})
+	
+} 
+
 predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
 {
 	forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s)  

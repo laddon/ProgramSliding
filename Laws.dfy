@@ -18,3 +18,8 @@ lemma Law3(S: Statement, S1: Statement, S2: Statement, B: BooleanExpression)
 	requires Valid(IF(B, SeqComp(S,S1), SeqComp(S,S2)))
 	requires def(S) !! vars(B)
 	ensures EquivalentStatments(SeqComp(S, IF(B, S1, S2)), IF(B, SeqComp(S,S1), SeqComp(S,S2)))
+
+lemma Law4(S1: Statement, S2: Statement, S3: Statement, B: BooleanExpression)
+	requires Valid(SeqComp(IF(B, S1, S2), S3))
+	requires Valid(IF(B, SeqComp(S1,S3), SeqComp(S2,S3)))
+	ensures EquivalentStatments(SeqComp(IF(B, S1, S2), S3), IF(B, SeqComp(S1,S3), SeqComp(S2,S3)))

@@ -12,3 +12,9 @@ lemma Law2(S: Statement, X: set<Variable>)
 	requires Valid(S)
 	ensures var LHS := fSetToSeq(X); var RHS := seqVarToSeqExpr(LHS);
 		EquivalentStatments(S, SeqComp(S, Assignment(LHS,RHS)))
+
+lemma Law3(S: Statement, S1: Statement, S2: Statement, B: BooleanExpression)
+	requires Valid(SeqComp(S, IF(B, S1, S2)))
+	requires Valid(IF(B, SeqComp(S,S1), SeqComp(S,S2)))
+	requires def(S) !! vars(B)
+	ensures EquivalentStatments(SeqComp(S, IF(B, S1, S2)), IF(B, SeqComp(S,S1), SeqComp(S,S2)))

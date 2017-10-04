@@ -7,3 +7,8 @@ lemma Law1(X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>,E2: seq<Expre
 	requires setOf(X) !! setOf(Y) + varsInExps(E1)
 	ensures var S1 := Assignment(X,E1); var S2 := Assignment(Y,E2);
 		EquivalentStatments(SeqComp(S1,S2), SeqComp(S2,S1))
+
+lemma Law2(S: Statement, X: set<Variable>)
+	requires Valid(S)
+	ensures var LHS := fSetToSeq(X); var RHS := seqVarToSeqExpr(LHS);
+		EquivalentStatments(S, SeqComp(S, Assignment(LHS,RHS)))

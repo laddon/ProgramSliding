@@ -52,3 +52,17 @@ lemma Law6(X: seq<Variable>, E: seq<Expression>)
 	ensures var assertion := EqualityAssertion(X,E);
 		EquivalentStatments(assertion,SeqComp(assertion, Assignment(X,E)))
 
+
+// Assertion-based program analysis
+
+/// Introduction of assertions
+
+lemma Law7(X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>,E2: seq<Expression>)
+	requires ValidAssignment(Y,E2)
+	requires var S := Assignment(X+Y,E1+E2);
+		Valid(S) && Valid(SeqComp(S,EqualityAssertion(Y,E2)))
+	requires setOf(X) !! setOf(Y) // TODO: this should follow from the above, with X+Y being the LHS of an assignment, yet this is not yet formulated in ValidAssignment
+	requires setOf(X) + setOf(Y) !! varsInExps(E2)
+	ensures var S := Assignment(X+Y,E1+E2);
+		EquivalentStatments(S, SeqComp(S,EqualityAssertion(Y,E2)))
+

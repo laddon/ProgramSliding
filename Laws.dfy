@@ -89,3 +89,8 @@ lemma Law11(S: Statement, B: BooleanExpression)
 	requires def(S) !! B.1
 	ensures EquivalentStatments(SeqComp(Assert(B),S),SeqComp(S,Assert(B)))
 
+lemma Law12(S1: Statement, S2: Statement, B1: BooleanExpression, B2: BooleanExpression)
+	requires Valid(SeqComp(Assert(B1),IF(B2,S1,S2)))
+	requires Valid(IF(B2,SeqComp(Assert(B1),S1),SeqComp(Assert(B1),S2)))
+	ensures EquivalentStatments(SeqComp(Assert(B1),IF(B2,S1,S2)),IF(B2,SeqComp(Assert(B1),S1),SeqComp(Assert(B1),S2)))
+

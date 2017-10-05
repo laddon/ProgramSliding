@@ -74,3 +74,10 @@ lemma Law8(X: seq<Variable>, X': seq<Variable>, E: seq<Expression>)
 	requires setOf(X) !! setOf(X')
 	ensures var S := Assignment(X+X',E+E);
 		EquivalentStatments(S, SeqComp(S,EqualityAssertion(X,seqVarToSeqExpr(X'))))
+
+lemma Law9(S1: Statement, B1: BooleanExpression, B2: BooleanExpression)
+	requires Valid(DO(B1,S1))
+	requires Valid(DO(B1,SeqComp(Assert(B2),S1)))
+	requires forall state :: B1.0.requires(state) && B1.0(state) ==> B2.0.requires(state) && B2.0(state)
+	ensures EquivalentStatments(DO(B1,S1),DO(B1,SeqComp(Assert(B2),S1)))
+

@@ -66,3 +66,11 @@ lemma Law7(X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>,E2: seq<Expre
 	ensures var S := Assignment(X+Y,E1+E2);
 		EquivalentStatments(S, SeqComp(S,EqualityAssertion(Y,E2)))
 
+lemma Law8(X: seq<Variable>, X': seq<Variable>, E: seq<Expression>)
+	requires ValidAssignment(X,E)
+	requires ValidAssignment(X',E)
+	requires var S := Assignment(X+X',E+E);
+		Valid(S) && Valid(SeqComp(S,EqualityAssertion(X,seqVarToSeqExpr(X'))))
+	requires setOf(X) !! setOf(X')
+	ensures var S := Assignment(X+X',E+E);
+		EquivalentStatments(S, SeqComp(S,EqualityAssertion(X,seqVarToSeqExpr(X'))))

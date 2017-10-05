@@ -129,3 +129,19 @@ lemma Law14(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: Bool
 	requires forall state :: B3.0.requires(state) && B3.0(state) ==> B4.0.requires(state) && B4.0(state)
 	ensures EquivalentStatments(Law14Left(S,B1,B2,B3),Law14Right(S,B1,B2,B3,B4))
 
+
+function Law15Left(B1: BooleanExpression, B2: BooleanExpression): Statement
+{
+	var B1andB2 := (state reads * requires B1.0.requires(state) && B2.0.requires(state) => B1.0(state) && B2.0(state), B1.1+B2.1);
+	Assert(B1andB2)
+}
+
+function Law15Right(B1: BooleanExpression, B2: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),Assert(B2))
+}
+
+lemma Law15(B1: BooleanExpression, B2: BooleanExpression)
+	requires Valid(Law15Left(B1,B2))
+	requires Valid(Law15Right(B1,B2))
+	ensures EquivalentStatments(Law15Left(B1,B2),Law15Right(B1,B2))

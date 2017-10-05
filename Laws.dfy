@@ -111,3 +111,21 @@ lemma Law13(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: Bool
 	requires forall state :: B3.0.requires(state) && B3.0(state) ==> B4.0.requires(state) && B4.0(state)
 	ensures EquivalentStatments(Law13Left(S,B1,B2,B3),Law13Right(S,B1,B2,B3,B4))
 
+function Law14Left(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),DO(B2,SeqComp(S,Assert(B3))))
+}
+
+function Law14Right(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression, B4: BooleanExpression): Statement
+{
+	var B2andB4 := (state reads * requires B2.0.requires(state) && B4.0.requires(state) => B2.0(state) && B4.0(state), B2.1+B4.1);
+	SeqComp(Assert(B1),DO(B2andB4,SeqComp(S,Assert(B3))))
+}
+
+lemma Law14(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression, B4: BooleanExpression)
+	requires Valid(Law14Left(S,B1,B2,B3))
+	requires Valid(Law14Right(S,B1,B2,B3,B4))
+	requires forall state :: B1.0.requires(state) && B1.0(state) ==> B4.0.requires(state) && B4.0(state)
+	requires forall state :: B3.0.requires(state) && B3.0(state) ==> B4.0.requires(state) && B4.0(state)
+	ensures EquivalentStatments(Law14Left(S,B1,B2,B3),Law14Right(S,B1,B2,B3,B4))
+

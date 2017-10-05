@@ -145,3 +145,19 @@ lemma Law15(B1: BooleanExpression, B2: BooleanExpression)
 	requires Valid(Law15Left(B1,B2))
 	requires Valid(Law15Right(B1,B2))
 	ensures EquivalentStatments(Law15Left(B1,B2),Law15Right(B1,B2))
+
+function Law16Left(S: Statement, B1: BooleanExpression, B2: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),DO(B2,S))
+}
+
+function Law16Right(S: Statement, B1: BooleanExpression, B2: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),DO(B2,SeqComp(Assert(B1),S)))
+}
+
+lemma Law16(S: Statement, B1: BooleanExpression, B2: BooleanExpression)
+	requires Valid(Law16Left(S,B1,B2))
+	requires Valid(Law16Right(S,B1,B2))
+	requires B1.1 !! def(S)
+	ensures EquivalentStatments(Law16Left(S,B1,B2),Law16Right(S,B1,B2))

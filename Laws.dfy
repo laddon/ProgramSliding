@@ -81,3 +81,11 @@ lemma Law9(S1: Statement, B1: BooleanExpression, B2: BooleanExpression)
 	requires forall state :: B1.0.requires(state) && B1.0(state) ==> B2.0.requires(state) && B2.0(state)
 	ensures EquivalentStatments(DO(B1,S1),DO(B1,SeqComp(Assert(B2),S1)))
 
+/// Propagation of assertions
+
+lemma Law11(S: Statement, B: BooleanExpression)
+	requires Valid(SeqComp(Assert(B),S))
+	requires Valid(SeqComp(S,Assert(B)))
+	requires def(S) !! B.1
+	ensures EquivalentStatments(SeqComp(Assert(B),S),SeqComp(S,Assert(B)))
+

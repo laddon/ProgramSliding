@@ -23,3 +23,27 @@ lemma Law4(S1: Statement, S2: Statement, S3: Statement, B: BooleanExpression)
 	requires Valid(SeqComp(IF(B, S1, S2), S3))
 	requires Valid(IF(B, SeqComp(S1,S3), SeqComp(S2,S3)))
 	ensures EquivalentStatments(SeqComp(IF(B, S1, S2), S3), IF(B, SeqComp(S1,S3), SeqComp(S2,S3)))
+
+function Law5Left(S1: Statement, X: seq<Variable>, B: BooleanExpression, E: seq<Expression>): Statement
+	requires ValidAssignment(X,E)
+{
+	var S0 := EqualityAssertion(X,E);
+	var S2 := Assignment(X,E);
+	SeqComp(S0,DO(B,SeqComp(S1,S2)))
+}
+
+function Law5Right(S1: Statement, X: seq<Variable>, B: BooleanExpression, E: seq<Expression>): Statement
+	requires ValidAssignment(X,E)
+{
+	var S0 := EqualityAssertion(X,E);
+	var S2 := Assignment(X,E);
+	SeqComp(S0,SeqComp(DO(B,S1),S2))
+}
+
+lemma Law5(S1: Statement, X: seq<Variable>, B: BooleanExpression, E: seq<Expression>)
+	requires ValidAssignment(X,E)
+	requires Valid(Law5Left(S1,X,B,E))
+	requires Valid(Law5Right(S1,X,B,E))
+	requires setOf(X) !! B.1 + input(S1) + varsInExps(E)
+	ensures EquivalentStatments(Law5Left(S1,X,B,E),Law5Right(S1,X,B,E))
+

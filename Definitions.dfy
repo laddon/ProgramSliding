@@ -114,8 +114,18 @@ function method ExpressionListToString(expressions: seq<Expression>) : string
 }
 
 //============================================================
-//					*** Constractors ***
+//					*** Constructors ***
 //============================================================
+
+function EqualityAssertion(X: seq<Variable>, E: seq<Expression>): (assertion: Statement)
+	requires ValidAssignment(X,E)
+{
+	var B := ((state: State) reads * 
+		requires (forall i :: 0 <= i < |X| ==> X[i] in state && E[i].0.requires(state)) => 
+		forall i :: 0 <= i < |X| ==> state[X[i]] == E[i].0(state), 
+		setOf(X)+varsInExps(E));
+	Assert(B)
+}
 
 function method PredicateFromString(str: string): Predicate
 {

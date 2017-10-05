@@ -94,3 +94,20 @@ lemma Law12(S1: Statement, S2: Statement, B1: BooleanExpression, B2: BooleanExpr
 	requires Valid(IF(B2,SeqComp(Assert(B1),S1),SeqComp(Assert(B1),S2)))
 	ensures EquivalentStatments(SeqComp(Assert(B1),IF(B2,S1,S2)),IF(B2,SeqComp(Assert(B1),S1),SeqComp(Assert(B1),S2)))
 
+function Law13Left(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),DO(B2,SeqComp(S,Assert(B3))))
+}
+
+function Law13Right(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression, B4: BooleanExpression): Statement
+{
+	SeqComp(Assert(B1),DO(B2,SeqComp(Assert(B4),SeqComp(S,Assert(B3)))))
+}
+
+lemma Law13(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression, B4: BooleanExpression)
+	requires Valid(Law13Left(S,B1,B2,B3))
+	requires Valid(Law13Right(S,B1,B2,B3,B4))
+	requires forall state :: B1.0.requires(state) && B1.0(state) ==> B4.0.requires(state) && B4.0(state)
+	requires forall state :: B3.0.requires(state) && B3.0(state) ==> B4.0.requires(state) && B4.0(state)
+	ensures EquivalentStatments(Law13Left(S,B1,B2,B3),Law13Right(S,B1,B2,B3,B4))
+

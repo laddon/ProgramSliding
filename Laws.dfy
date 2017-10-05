@@ -47,3 +47,8 @@ lemma Law5(S1: Statement, X: seq<Variable>, B: BooleanExpression, E: seq<Express
 	requires setOf(X) !! B.1 + input(S1) + varsInExps(E)
 	ensures EquivalentStatments(Law5Left(S1,X,B,E),Law5Right(S1,X,B,E))
 
+lemma Law6(X: seq<Variable>, E: seq<Expression>)
+	requires Valid(Assignment(X,E))
+	ensures var assertion := EqualityAssertion(X,E);
+		EquivalentStatments(assertion,SeqComp(assertion, Assignment(X,E)))
+

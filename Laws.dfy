@@ -1,4 +1,5 @@
 include "Definitions.dfy"
+include "Substitutions.dfy"
 
 // Laws for manipulating core statements
 lemma Law1(X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>,E2: seq<Expression>)
@@ -161,3 +162,74 @@ lemma Law16(S: Statement, B1: BooleanExpression, B2: BooleanExpression)
 	requires Valid(Law16Right(S,B1,B2))
 	requires B1.1 !! def(S)
 	ensures EquivalentStatments(Law16Left(S,B1,B2),Law16Right(S,B1,B2))
+
+function Law17aLeft(X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': seq<Variable>): Statement
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+{
+	SeqComp(EqualityAssertion(Y,seqVarToSeqExpr(Y')),Assignment(X,E))
+}
+
+function Law17aRight(X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': seq<Variable>): Statement
+	reads *
+	requires |Y| == |Y'|
+	requires setOf(Y) !! setOf(Y')
+{
+	var E' := ESeqSubstitute(E,Y,Y');
+	SeqComp(EqualityAssertion(Y,seqVarToSeqExpr(Y')),Assignment(X,E'))
+}
+
+lemma Law17a(X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': seq<Variable>)
+	requires |Y| == |Y'|
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+	requires setOf(Y) !! setOf(Y')
+	requires Valid(Law17aLeft(X,E,Y,Y'))
+	requires Valid(Law17aRight(X,E,Y,Y'))
+	ensures EquivalentStatments(Law17aLeft(X,E,Y,Y'),Law17aRight(X,E,Y,Y'))
+
+function Law17bLeft(S1: Statement, S2: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+{
+	SeqComp(EqualityAssertion(Y,seqVarToSeqExpr(Y')),IF(B,S1,S2))
+}
+
+function Law17bRight(S1: Statement, S2: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
+	reads *
+	requires |Y| == |Y'|
+	requires setOf(Y) !! setOf(Y')
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+{
+	SeqComp(EqualityAssertion(Y,seqVarToSeqExpr(Y')),IF(BSubstitute(B,Y,Y'),S1,S2))
+}
+
+lemma Law17b(S1: Statement, S2: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>)
+	requires |Y| == |Y'|
+	requires setOf(Y) !! setOf(Y')
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+	requires Valid(Law17bLeft(S1,S2,B,Y,Y'))
+	requires Valid(Law17bRight(S1,S2,B,Y,Y'))
+	ensures EquivalentStatments(Law17bLeft(S1,S2,B,Y,Y'),Law17bRight(S1,S2,B,Y,Y'))
+
+function Law17cLeft(S1: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+{
+	var Inv := EqualityAssertion(Y,seqVarToSeqExpr(Y'));
+	SeqComp(Inv,DO(B,SeqComp(S1,Inv)))
+}
+
+function Law17cRight(S1: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
+	reads *
+	requires |Y| == |Y'|
+	requires setOf(Y) !! setOf(Y')
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+{
+	var Inv := EqualityAssertion(Y,seqVarToSeqExpr(Y'));
+	SeqComp(Inv,DO(BSubstitute(B,Y,Y'),SeqComp(S1,Inv)))
+}
+
+lemma Law17c(S1: Statement, B: BooleanExpression, X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': seq<Variable>)
+	requires |Y| == |Y'|
+	requires setOf(Y) !! setOf(Y') // TODO: remove this - after removing it from the precondition of the substitution
+	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
+	requires Valid(Law17cLeft(S1,B,Y,Y'))
+	requires Valid(Law17cRight(S1,B,Y,Y'))
+	ensures EquivalentStatments(Law17cLeft(S1,B,Y,Y'),Law17cRight(S1,B,Y,Y'))

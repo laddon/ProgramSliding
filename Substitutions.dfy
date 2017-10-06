@@ -1,6 +1,18 @@
 include "Definitions.dfy"
+
+
 /*
- * Substitutes all occurances of v in X in S with v' in X'
+ * Functions for performing substitutions of variables by variables on statements
+ * and of variables by variables or variables by expressions on
+ * sequences of variables, expressions, sequences of expressions, 
+ * and boolean expressions.
+ *
+ */
+ 
+/*
+ * Substitutions by variables:
+ * Each of the following functions substitutes all occurrences of v from X with 
+ * the corresponding v' from X'
  * 
  */
 function method substitute(S: Statement, X: seq<Variable>, X': seq<Variable>) : (S': Statement)
@@ -140,3 +152,68 @@ ensures setOf(X) !! varsInExps(res)
 	else
 		[ESubstitute(Es[0], X, X')]+ESeqSubstitute(Es[1..], X, X')
 }
+
+/*
+ * Substitutions by expressions:
+ * Each of the following functions substitutes all occurrences of v from X with 
+ * the corresponding v' from X'
+ */
+function method {:verify true} BSubstituteVbyE(
+	B0: BooleanExpression,
+	X: seq<Variable>,
+	E: seq<Expression>) : (res: BooleanExpression)
+reads *
+requires |X| == |E|
+{
+	((state reads * requires(forall v :: v in B0.1-setOf(X)+varsInExps(E) ==> v in state)
+		requires forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m)
+		requires forall exp :: exp in E ==> exp.0.requires(state)
+		=> 
+			var m := map v | v in B0.1 :: 
+			(if v !in X 	
+				then state[v] 
+				else E[FindV(v, X)].0(state));
+
+		B0.0(m)),
+	 B0.1-setOf(X)+varsInExps(E))
+}
+
+function method {:verify true} FindV(v: Variable, X: seq<Variable>) : (res: nat)
+requires v in X
+ensures 0 <= res < |X| && X[res] == v
+{
+	if v == X[0] then 0 else 1+FindV(v,X[1..])
+}
+
+function method {:verify true} ESubstituteVbyE(
+	E0: Expression,
+	X: seq<Variable>,
+	E: seq<Expression>) : (res:Expression)
+reads *
+requires |X| == |E|
+{
+	((state reads * requires(forall v :: v in E0.1-setOf(X)+varsInExps(E) ==> v in state)
+		requires forall m :: (forall v :: v in E0.1 ==> v in m) ==> E0.0.requires(m)
+		requires forall exp :: exp in E ==> exp.0.requires(state)
+		=> 
+			var m := map v | v in E0.1 :: 
+			(if v !in X 	
+				then state[v] 
+				else E[FindV(v, X)].0(state));
+
+		E0.0(m)),
+	 E0.1-setOf(X)+varsInExps(E))
+}
+
+function method {:verify true} ESeqSubstituteVbyE(
+	Es: seq<Expression>,
+	X: seq<Variable>,
+	E: seq<Expression>) : (res : seq<Expression>)
+reads *
+requires |X| == |E|
+{
+	if Es == [] then []
+	else
+		[ESubstituteVbyE(Es[0], X, E)]+ESeqSubstituteVbyE(Es[1..], X, E)
+}
+

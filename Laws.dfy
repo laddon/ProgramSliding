@@ -296,3 +296,13 @@ lemma Law18c(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': seq<Vari
 	requires setOf(X) + setOf(X') !! setOf(Y)
 	requires setOf(X) + setOf(X') + setOf(Y) !! varsInExps(E2)
 	ensures EquivalentStatments(Law18cLeft(S1,B,X,X',Y,E1,E1',E2),Law18cRight(S1,B,X,X',Y,E1,E1',E2))
+
+// Live variables analysis
+
+/// Introduction and removal of liveness information
+
+lemma Law19(S: Statement, V: seq<Variable>)
+	requires Valid(S)
+	requires Valid(Live(V,S))
+	requires def(S) <= setOf(V)
+	ensures EquivalentStatments(S,Live(V,S))

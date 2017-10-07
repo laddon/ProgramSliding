@@ -332,6 +332,6 @@ lemma Law23(S: Statement, V: seq<Variable>, X: seq<Variable>, Y: seq<Variable>, 
 	requires |X| == |E1| && |Y| == |E2|
 	requires Valid(Live(V,SeqComp(S,Assignment(X,E1))))
 	requires Valid(Live(V,SeqComp(S,Assignment(X+Y,E1+E2))))
-	requires setOf(Y) == setOf(X) + setOf(V)
+	requires setOf(Y) !! setOf(X) + setOf(V)
 	ensures EquivalentStatments(Live(V,SeqComp(S,Assignment(X,E1))),Live(V,SeqComp(S,Assignment(X+Y,E1+E2))))
 

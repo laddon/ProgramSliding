@@ -325,3 +325,13 @@ lemma Law22(B: BooleanExpression, S: Statement, V1: seq<Variable>, V2: seq<Varia
 	requires Valid(Live(V1,DO(B,Live(V2,S))))
 	requires setOf(V2) == setOf(V1) + B.1 + input(S)
 	ensures EquivalentStatments(Live(V1,DO(B,S)),Live(V1,DO(B,Live(V2,S))))
+
+/// Dead assignments: introduction and elimination
+
+lemma Law23(S: Statement, V: seq<Variable>, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>)
+	requires |X| == |E1| && |Y| == |E2|
+	requires Valid(Live(V,SeqComp(S,Assignment(X,E1))))
+	requires Valid(Live(V,SeqComp(S,Assignment(X+Y,E1+E2))))
+	requires setOf(Y) == setOf(X) + setOf(V)
+	ensures EquivalentStatments(Live(V,SeqComp(S,Assignment(X,E1))),Live(V,SeqComp(S,Assignment(X+Y,E1+E2))))
+

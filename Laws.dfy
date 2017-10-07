@@ -306,3 +306,12 @@ lemma Law19(S: Statement, V: seq<Variable>)
 	requires Valid(Live(V,S))
 	requires def(S) <= setOf(V)
 	ensures EquivalentStatments(S,Live(V,S))
+
+/// Propagation of liveness information
+
+lemma Law20(S1: Statement, S2: Statement, V1: seq<Variable>, V2: seq<Variable>)
+	requires Valid(Live(V1,SeqComp(S1,S2)))
+	requires Valid(Live(V1,SeqComp(Live(V2,S1),Live(V1,S2))))
+	requires setOf(V2) == setOf(V1) - ddef(S2) + input(S2)
+	ensures EquivalentStatments(Live(V1,SeqComp(S1,S2)),Live(V1,SeqComp(Live(V2,S1),Live(V1,S2))))
+

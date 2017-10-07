@@ -341,3 +341,11 @@ lemma Law24(S: Statement, V: seq<Variable>, Y: seq<Variable>, E: seq<Expression>
 	requires Valid(Live(V,SeqComp(S,Assignment(Y,E))))
 	requires setOf(Y) !! setOf(V)
 	ensures EquivalentStatments(Live(V,S),Live(V,SeqComp(S,Assignment(Y,E))))
+
+lemma Law25(S: Statement, V: seq<Variable>, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>)
+	requires |X| == |E1| && |Y| == |E2|
+	requires Valid(Live(V,SeqComp(Assignment(X,E1),S)))
+	requires Valid(Live(V,SeqComp(Assignment(X+Y,E1+E2),S)))
+	requires setOf(Y) !! setOf(X) + (setOf(V) - ddef(S)) + input(S)
+	ensures EquivalentStatments(Live(V,SeqComp(Assignment(X,E1),S)),Live(V,SeqComp(Assignment(X+Y,E1+E2),S)))
+

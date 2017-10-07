@@ -233,3 +233,66 @@ lemma Law17c(S1: Statement, B: BooleanExpression, X: seq<Variable>, E: seq<Expre
 	requires Valid(Law17cLeft(S1,B,Y,Y'))
 	requires Valid(Law17cRight(S1,B,Y,Y'))
 	ensures EquivalentStatments(Law17cLeft(S1,B,Y,Y'),Law17cRight(S1,B,Y,Y'))
+
+function Law18aLeft(X: seq<Variable>, Y: seq<Variable>, Z: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>, E3: seq<Expression>): Statement
+	requires |X| == |E1| && |Y| == |E2| && |Z| == |E3|
+{
+	SeqComp(Assignment(X+Y,E1+E2),Assignment(Z,E3))
+}
+
+function Law18aRight(X: seq<Variable>, Y: seq<Variable>, Z: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>, E3: seq<Expression>): Statement
+	reads *
+	requires |X| == |E1| && |Y| == |E2| && |Z| == |E3|
+{
+	SeqComp(Assignment(X+Y,E1+E2),Assignment(Z,ESeqSubstituteVbyE(E3,Y,E2)))
+}
+
+lemma Law18a(X: seq<Variable>, Y: seq<Variable>, Z: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>, E3: seq<Expression>)
+	requires |X| == |E1| && |Y| == |E2| && |Z| == |E3|
+	requires Valid(Law18aLeft(X,Y,Z,E1,E2,E3))
+	requires Valid(Law18aRight(X,Y,Z,E1,E2,E3))
+	requires setOf(X) !! setOf(Y)
+	requires setOf(X) + setOf(Y) !! varsInExps(E2)
+	ensures EquivalentStatments(Law18aLeft(X,Y,Z,E1,E2,E3),Law18aRight(X,Y,Z,E1,E2,E3))
+
+function Law18bLeft(S1: Statement, S2: Statement, B: BooleanExpression, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>): Statement
+	requires |X| == |E1| && |Y| == |E2|
+{
+	SeqComp(Assignment(X+Y,E1+E2),IF(B,S1,S2))
+}
+
+function Law18bRight(S1: Statement, S2: Statement, B: BooleanExpression, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>): Statement
+	reads *
+	requires |X| == |E1| && |Y| == |E2|
+{
+	SeqComp(Assignment(X+Y,E1+E2),IF(BSubstituteVbyE(B,Y,E2),S1,S2))
+}
+
+lemma Law18b(S1: Statement, S2: Statement, B: BooleanExpression, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>)
+	requires |X| == |E1| && |Y| == |E2|
+	requires Valid(Law18bLeft(S1,S2,B,X,Y,E1,E2))
+	requires Valid(Law18bRight(S1,S2,B,X,Y,E1,E2))
+	requires setOf(X) !! setOf(Y)
+	requires setOf(X) + setOf(Y) !! varsInExps(E2)
+	ensures EquivalentStatments(Law18bLeft(S1,S2,B,X,Y,E1,E2),Law18bRight(S1,S2,B,X,Y,E1,E2))
+
+function Law18cLeft(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E1': seq<Expression>, E2: seq<Expression>): Statement
+	requires |X| == |E1| && |Y| == |E2| && |X'| == |E1'|
+{
+	SeqComp(Assignment(X+Y,E1+E2),DO(B,SeqComp(S1,Assignment(X',E1'))))
+}
+
+function Law18cRight(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E1': seq<Expression>, E2: seq<Expression>): Statement
+	reads *
+	requires |X| == |E1| && |Y| == |E2| && |X'| == |E1'|
+{
+	SeqComp(Assignment(X+Y,E1+E2),DO(BSubstituteVbyE(B,Y,E2),SeqComp(S1,Assignment(X',E1'))))
+}
+
+lemma Law18c(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E1': seq<Expression>, E2: seq<Expression>)
+	requires |X| == |E1| && |Y| == |E2| && |X'| == |E1'|
+	requires Valid(Law18cLeft(S1,B,X,X',Y,E1,E1',E2))
+	requires Valid(Law18cRight(S1,B,X,X',Y,E1,E1',E2))
+	requires setOf(X) + setOf(X') !! setOf(Y)
+	requires setOf(X) + setOf(X') + setOf(Y) !! varsInExps(E2)
+	ensures EquivalentStatments(Law18cLeft(S1,B,X,X',Y,E1,E1',E2),Law18cRight(S1,B,X,X',Y,E1,E1',E2))

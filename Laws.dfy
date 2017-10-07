@@ -349,3 +349,10 @@ lemma Law25(S: Statement, V: seq<Variable>, X: seq<Variable>, Y: seq<Variable>, 
 	requires setOf(Y) !! setOf(X) + (setOf(V) - ddef(S)) + input(S)
 	ensures EquivalentStatments(Live(V,SeqComp(Assignment(X,E1),S)),Live(V,SeqComp(Assignment(X+Y,E1+E2),S)))
 
+lemma Law26(B: BooleanExpression, S1: Statement, S2: Statement, Y: seq<Variable>, V: seq<Variable>, E: seq<Expression>)
+	requires |Y| == |E|
+	requires Valid(Live(V,SeqComp(S1,DO(B,S2))))
+	requires Valid(Live(V,SeqComp(S1,DO(B,SeqComp(S2,Assignment(Y,E))))))
+	requires setOf(Y) !! setOf(V) + B.1 + input(S2)
+	ensures EquivalentStatments(Live(V,SeqComp(S1,DO(B,S2))),
+		Live(V,SeqComp(S1,DO(B,SeqComp(S2,Assignment(Y,E))))))

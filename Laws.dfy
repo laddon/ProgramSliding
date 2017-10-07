@@ -315,3 +315,7 @@ lemma Law20(S1: Statement, S2: Statement, V1: seq<Variable>, V2: seq<Variable>)
 	requires setOf(V2) == setOf(V1) - ddef(S2) + input(S2)
 	ensures EquivalentStatments(Live(V1,SeqComp(S1,S2)),Live(V1,SeqComp(Live(V2,S1),Live(V1,S2))))
 
+lemma Law21(B: BooleanExpression, S1: Statement, S2: Statement, V: seq<Variable>)
+	requires Valid(Live(V,IF(B,S1,S2)))
+	requires Valid(Live(V,IF(B,Live(V,S1),Live(V,S2))))
+	ensures EquivalentStatments(Live(V,IF(B,S1,S2)),Live(V,IF(B,Live(V,S1),Live(V,S2))))

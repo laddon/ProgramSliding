@@ -319,3 +319,9 @@ lemma Law21(B: BooleanExpression, S1: Statement, S2: Statement, V: seq<Variable>
 	requires Valid(Live(V,IF(B,S1,S2)))
 	requires Valid(Live(V,IF(B,Live(V,S1),Live(V,S2))))
 	ensures EquivalentStatments(Live(V,IF(B,S1,S2)),Live(V,IF(B,Live(V,S1),Live(V,S2))))
+
+lemma Law22(B: BooleanExpression, S: Statement, V1: seq<Variable>, V2: seq<Variable>)
+	requires Valid(Live(V1,DO(B,S)))
+	requires Valid(Live(V1,DO(B,Live(V2,S))))
+	requires setOf(V2) == setOf(V1) + B.1 + input(S)
+	ensures EquivalentStatments(Live(V1,DO(B,S)),Live(V1,DO(B,Live(V2,S))))

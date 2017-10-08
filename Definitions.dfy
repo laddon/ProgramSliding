@@ -275,7 +275,7 @@ function method ddef(S: Statement) : set<Variable>
 	}
 }
 
-function input(S: Statement) : set<Variable>
+function method input(S: Statement) : set<Variable>
 {
 	match S {
 		case Assignment(LHS,RHS) => varsInExps(RHS) 

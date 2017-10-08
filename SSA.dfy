@@ -1,9 +1,6 @@
-datatype Statement = Assignment(LHS : seq<Variable>, RHS : seq<Expression>) | Skip | SeqComp(S1 : Statement, S2 : Statement) | 
-		IF(B0 : BooleanExpression, Sthen : Statement, Selse : Statement) | DO(B : BooleanExpression, S : Statement) |
-		LocalDeclaration(L : seq<Variable>, S0 : Statement)
-type Variable = string
-type Expression = string
-type BooleanExpression = string
+include "Definitions.dfy"
+//include "Substitutions.dfy"
+include "Util.dfy"
 
 class VariablesSSA {
 
@@ -257,63 +254,12 @@ method Main()
 }
 
 
-predicate method ValidAssignment(str : string)
-{
-	true // check ":=" with same-length lists to its left and right, the former of distinct variable names and the right of expressions
-}
-
-predicate Valid(stmt: Statement)
-{
-	match stmt {
-		case Skip => true
-		case Assignment(LHS, RHS) => |LHS| == |RHS|
-		case SeqComp(S1,S2) => Valid(S1) && Valid(S2)
-		case IF(B,Sthen,Selse) => Valid(Sthen) && Valid(Selse)
-			//(forall state: State :: B.requires(state) && B(state).Bool?) && 
-			//Valid(Sthen) && Valid(Selse)
-		case DO(B,S) => Valid(S)
-			//(forall state: State :: B.requires(state) && B(state).Bool?) && Valid(S)
-		case LocalDeclaration(L,S) => Valid(S)
-	} 
-	//&&
-	//forall state1: State, P: Predicate  :: P.requires(state1)
-
-}
-
 predicate ValidVsSSA(vsSSA: VariablesSSA) reads vsSSA
 {
 	vsSSA != null && vsSSA.n >= 1 && (forall v :: v in vsSSA.instancesOf ==> |vsSSA.instancesOf[v]| >= 1)
 	&& (forall i :: i in vsSSA.variableOf ==> vsSSA.variableOf[i] in vsSSA.instancesOf && i in vsSSA.instancesOf[vsSSA.variableOf[i]])
 	&& (forall v :: v in vsSSA.instancesOf ==> (forall i :: i in vsSSA.instancesOf[v] ==> i in vsSSA.variableOf && vsSSA.variableOf[i] == v))
 	&& (forall v :: v in vsSSA.instancesOf ==> vsSSA.existsInstance(v)) && (forall i :: i in vsSSA.variableOf ==> vsSSA.existsVariable2(i))
-}
-
-method digitToString(num: int) returns (str: string)
-	requires num >= 0 && num <= 9
-{
-	if num == 0 { str := "0"; }
-	else if num == 1 { str := "1"; }
-	else if num == 2 { str := "2"; }
-	else if num == 3 { str := "3"; }
-	else if num == 4 { str := "4"; }
-	else if num == 5 { str := "5"; }
-	else if num == 6 { str := "6"; }
-	else if num == 7 { str := "7"; }
-	else if num == 8 { str := "8"; }
-	else if num == 9 { str := "9"; }
-}
-
-
-method intToString(num: int) returns (str: string)
-	requires num >= 0
-{
-	if num >= 0 && num <= 9 { str := digitToString(num); }
-	else
-	{
-		var digitStr := digitToString(num % 10);
-		var str' := intToString(num / 10);
-		str := str' + digitStr;
-	}
 }
 
  method freshInit(vars : seq<Variable>, ghost allVars : set<Variable>, vsSSA : VariablesSSA) returns (res: seq<Variable>)
@@ -334,57 +280,6 @@ method intToString(num: int) returns (str: string)
 
 		res := [newInstance] + res';
 	}
-}
-
-function method def(S : Statement) : set<Variable> // FIXME: make it return a set
-//	ensures def(S) == {"i","sum","prod"};
-{
-	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) // FIXME
-		case Skip => {}
-		case SeqComp(S1,S2) => def(S1) + def(S2)
-		case IF(B0,Sthen,Selse) => def(Sthen) + def(Selse)
-		case DO(B,S) => def(S)
-		case LocalDeclaration(L,S0) => def(S0) - setOf(L)
-	}
-}
-
-function method ddef(S : Statement) : set<Variable>
-//	ensures ddef(S) == ["i","sum","prod"];
-{
-	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) // FIXME
-		case Skip => {}
-		case SeqComp(S1,S2) => ddef(S1) + ddef(S2)
-		case IF(B0,Sthen,Selse) => ddef(Sthen) * ddef(Selse)
-		case DO(B,S) => {}
-		case LocalDeclaration(L,S0) => ddef(S0) - setOf(L)
-	}
-}
-
-function method input(S : Statement) : set<Variable>
-//	ensures input(S) == ["i","sum","prod"];
-{
-	match S {
-		case Assignment(LHS,RHS) => setOf(LHS) // FIXME (LHS is a sequence of Expression(s), not Variable(s)
-		case Skip => {}
-		case SeqComp(S1,S2) => input(S1) + (input(S2) - ddef(S1)) // right?
-		case IF(B0,Sthen,Selse) => setOf([B0]) + input(Sthen) + input(Selse) // FIXME: variables of B0?
-		case DO(B,S) => setOf([B]) + input(S) // FIXME: variables of B?
-		case LocalDeclaration(L,S0) => input(S0) - setOf(L) // FIXME is the "- L" not redundant?
-	}
-}
-
-function method glob(S : Statement) : set<Variable>
-	//ensures glob(S) == setOf(def(S) + input(S));
-{
-	set v | v in def(S) + input(S)
-}
-
-function method setOf(s : seq<Variable>) : set<Variable>
-	ensures forall v :: v in setOf(s) ==> v in s
-{
-	set x | x in s
 }
 
 
@@ -521,7 +416,8 @@ method SubstitueExpressionSeq(E: seq<Expression>, X: seq<set<Variable>>, XLi: se
 }
 
 method SubstitueBooleanExpression(B: BooleanExpression, X: seq<set<Variable>>, XLi: seq<set<Variable>>) returns (B': BooleanExpression)
-	ensures |B| == |B'|
+// ensures |B| == |B'|
+	ensures B == B' // FIXME: replace with an appropriate call to one of the functions in the new "Substitutions.dfy"
 {
 	B' := B;
 	// TODO - OR!
@@ -572,7 +468,7 @@ method FindIndexOfNum(arr: seq<int>, num: int) returns (i: int)
 	}
 }
 
-method GetNewRHS(indices: seq<int>, E: seq<Expression>, index: int) returns (RHS': seq<Variable>)
+method GetNewRHS(indices: seq<int>, E: seq<Expression>, index: int) returns (RHS': seq<Expression>)
 	requires |indices| == |E|
 	requires index >= 0
 	requires index <= |indices| 
@@ -811,6 +707,7 @@ method {:verify false}OrganizeVariables(vars1: seq<Variable>, vars2: seq<Variabl
 
 method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns(S': Statement)
 	requires Valid(S)
+	requires (Core(S))
 	requires ValidVsSSA(vsSSA)
 	//requires S.Assignment? ==> setOf(S.LHS) <= (setOf(X) + Y)
 	requires forall i :: i in liveOnEntryX ==> vsSSA.existsVariable2(i)
@@ -843,7 +740,6 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 		case SeqComp(S1,S2) => S' := SeqCompToSSA(S1, S2, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 		case IF(B0,Sthen,Selse) => S' := Skip;//IfToSSA(B0, Sthen, Selse, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 		case DO(B,S) => S' := Skip;//DoToSSA(B, S, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
-		case LocalDeclaration(L,S0) => S' := Skip;
 		case Skip => S' := Skip;
 	}
 }
@@ -1115,6 +1011,7 @@ method {:verify true}SeqCompToSSA(S1: Statement, S2: Statement, X: seq<Variable>
 	// עד לפה התקמפל בערך 40 דקות
 	*/
 	S' := Skip;
+	assume Valid(S');
 }
 
 method {:verify false}IfToSSA(B : BooleanExpression, S1 : Statement, S2 : Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns (S': Statement)
@@ -1283,7 +1180,8 @@ method {:verify false}IfToSSA(B : BooleanExpression, S1 : Statement, S2 : Statem
 	assert forall i :: i in liveOnExitX' ==> vsSSA.existsVariable2(i);
 	var S1' := ToSSA(S1, X, liveOnEntryX, liveOnExitX', Y, XLs', vsSSA); 
 
-	var XLs'' := XLs' + (glob(S1') - Y);
+	var globS1' := def(S1') + input(S1');
+	var XLs'' := XLs' + (globS1' - Y);
 	temp := setToSeq(XL3i);
 	assert forall i :: i in temp ==> vsSSA.existsVariable2(i);
 	assert forall i :: i in XL4e ==> vsSSA.existsVariable2(i);
@@ -1292,8 +1190,8 @@ method {:verify false}IfToSSA(B : BooleanExpression, S1 : Statement, S2 : Statem
 	assert forall i :: i in liveOnExitX' ==> vsSSA.existsVariable2(i);
 	var S2' := ToSSA(S2, X, liveOnEntryX, liveOnExitX', Y, XLs'', vsSSA);
 
-	var tempAssignment1 := Assignment(XL4fThenSeq + XL5fSeq, XL4t + XL5t);
-	var tempAssignment2 := Assignment(XL4fElseSeq + XL5fSeq, XL4e + XL5e);
+	var tempAssignment1 := Assignment(XL4fThenSeq + XL5fSeq, seqVarToSeqExpr(XL4t + XL5t));
+	var tempAssignment2 := Assignment(XL4fElseSeq + XL5fSeq, seqVarToSeqExpr(XL4e + XL5e));
 	assert Valid(tempAssignment1);
 	assert Valid(tempAssignment2);
 	var tempSeqComp1 := SeqComp(S1', tempAssignment1);
@@ -1436,13 +1334,13 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 	var S' := ToSSA(S, X, setOf(liveOnEntryX'), setOf(liveOnExitX'), Y, XLs', vsSSA);
 
 	var tempDO := DO(B', S');
-	var tempAssignment := Assignment(XL2Seq + XL4fSeq, XL2bSeq + XL4bSeq);
+	var tempAssignment := Assignment(XL2Seq + XL4fSeq, seqVarToSeqExpr(XL2bSeq + XL4bSeq));
 	assert Valid(tempDO);
 	assert Valid(tempAssignment);
 	var DO' := SeqComp(tempDO, tempAssignment);
 	assert Valid(DO');
 	//var DO' := SeqComp(DO(B', S'), Assignment(XL2Seq + XL4fSeq, XL2bSeq + XL4bSeq));
-	tempAssignment := Assignment(XL2Seq + XL4fSeq, XL2iSeq + XL4iSeq);
+	tempAssignment := Assignment(XL2Seq + XL4fSeq, seqVarToSeqExpr(XL2iSeq + XL4iSeq));
 	assert Valid(tempAssignment);
 	S'' := SeqComp(tempAssignment, DO');
 	//S'' := SeqComp(Assignment(XL2Seq + XL4fSeq, XL2iSeq + XL4iSeq), DO');

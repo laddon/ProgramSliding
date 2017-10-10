@@ -1,6 +1,7 @@
 include "Definitions.dfy"
-//include "Substitutions.dfy"
+include "Substitutions.dfy"
 include "Util.dfy"
+include "Laws.dfy"
 
 class VariablesSSA {
 
@@ -704,7 +705,13 @@ method {:verify false}OrganizeVariables(vars1: seq<Variable>, vars2: seq<Variabl
 	}
 }*/
 
-
+/*
+predicate Q1ToSSA(S: Statement, S': Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA)
+{
+	var X3 :=
+	EquivalentStatments(ToSSALeft(),ToSSARight())
+}
+*/
 method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns(S': Statement)
 	requires Valid(S)
 	requires (Core(S))
@@ -725,13 +732,14 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 	ensures forall v :: v in X ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in Y ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in old(vsSSA.instancesOf) ==> v in vsSSA.instancesOf && (forall i :: i in old(vsSSA.instancesOf[v]) ==> i in vsSSA.instancesOf[v])
+//	ensures Q1ToSSA(S,S',X,liveOnEntryX,liveOnExitX,Y,XLs,vsSSA)
 {
 	//var vsSSA := new VariablesSSA(); // Create in main!
 
 	match S {
 		/*case Assignment(LHS,RHS) => S' := AssignmentToSSA(LHS, RHS, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 		case SeqComp(S1,S2) => S' := SeqCompToSSA(S1, S2, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
-		case IF(B0,Sthen,Selse) => S' := IfToSSA(B0, Sthen, Selse, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
+		case IF(B0,Sthen,Selse) =To> S' := IfToSSA(B0, Sthen, Selse, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 		case DO(B,S) => S' := DoToSSA(B, S, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 		case LocalDeclaration(L,S0) => S' := Skip;
 		case Skip => S' := Skip;*/
@@ -1533,4 +1541,73 @@ method {:verify false}DoFromSSA(B' : BooleanExpression, S' : Statement, XLs: set
 
 	S := MergeVars(S', XLs, X, XLi, XLi, Y, vsSSA);
 	S := DO(B, S);
+}
+
+function TransformationD3Left(B: BooleanExpression, 
+		S1: Statement, S2: Statement,
+		X2: seq<Variable>,
+		XL2f: seq<Variable>, Y: seq<Variable>): Statement
+{
+	Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2))))
+}
+
+function TransformationD3Right(B': BooleanExpression, 
+		S1': Statement, S2': Statement,
+		X1: seq<Variable>,
+		XL1i: seq<Variable>, XL2f: seq<Variable>, Y: seq<Variable>): Statement
+{
+	Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2')))
+}
+
+lemma TransformationD3(B: BooleanExpression, B': BooleanExpression, 
+		S1: Statement, S2: Statement, S1': Statement, S2': Statement,
+		X1: seq<Variable>, X2: seq<Variable>,
+		XL1i: seq<Variable>, XL2i: seq<Variable>, XL2f: seq<Variable>, Y: seq<Variable>)
+	requires Valid(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))))
+	requires Valid(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2')))
+	requires EquivalentStatments(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))),
+		Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2'))) // P5
+	requires Valid(Live(XL2f+Y,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2)))))
+	requires Valid(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1')))
+	requires EquivalentStatments(Live(XL2f+Y,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2)))),
+		Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1'))) // P4
+	requires setOf(XL1i) !! B.1 // P3
+	requires setOf(XL1i) !! setOf(X1) // P2
+	requires |X1| == |XL1i|
+	requires var B'' := BSubstitute(B,X1,XL1i); B'.1 == B''.1 &&
+		(forall state :: B'.0.requires(state) <==> B''.0.requires(state)) &&
+		(forall state :: B'.0.requires(state) ==> B'.0(state) == B''.0(state)) // P1
+
+	requires Valid(TransformationD3Left(B,S1,S2,X2,XL2f,Y))
+	requires Valid(TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y))
+	ensures EquivalentStatments(TransformationD3Left(B,S1,S2,X2,XL2f,Y),
+			TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y))
+{
+	var T1 := TransformationD3Left(B,S1,S2,X2,XL2f,Y);
+	var T2 := TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y);
+	forall P: Predicate ensures EquivalentPredicates(wp(T1,P),wp(T2,P)) {
+		var P1 := wp(T1,P);
+		var P2 := wp(T2,P);
+		forall s: State | P1.0.requires(s) && P2.0.requires(s) ensures P1.0(s) == P2.0(s) {
+			calc {
+				wp(T2,P).0(s);
+			== // def. of T2 and of TransformationD3Right
+				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2'))),P).0(s);
+			== { assert B'.0(s) == BSubstitute(B,X1,XL1i).0(s);
+						assert EquivalentStatments(IF(B',S1',S2'),IF(BSubstitute(B,X1,XL1i),S1',S2'));
+						assume wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2'))),P).0(s) == wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstitute(B,X1,XL1i),S1',S2'))),P).0(s);
+						} // from P10
+				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstitute(B,X1,XL1i),S1',S2'))),P).0(s);
+			== { assert setOf(XL1i) !! setOf(X1); // P2
+						Law18b(S1',S2',BSubstitute(B,X1,XL1i),[],XL1i,[],seqVarToSeqExpr(X1)); }
+				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstituteVbyE(BSubstitute(B,X1,XL1i),XL1i,seqVarToSeqExpr(X1)),S1',S2'))),P).0(s);
+			== { assume wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstituteVbyE(BSubstitute(B,X1,XL1i),XL1i,seqVarToSeqExpr(X1)),S1',S2'))),P).0(s) ==
+						wp(Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2)))),P).0(s);
+					}
+				wp(Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2)))),P).0(s);
+			== // def. of T1 and of TransformationD3Left
+				wp(T1,P).0(s);
+			}
+		}
+	}
 }

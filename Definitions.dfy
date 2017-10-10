@@ -337,6 +337,7 @@ function method varsInExps(exps: seq<Expression>): set<Variable>
 
 function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<Expression>)
 	ensures ValidAssignment(seqvars, res)
+	ensures varsInExps(res) == setOf(seqvars)
 {
 	if seqvars == [] then []
 	else 

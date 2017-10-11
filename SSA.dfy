@@ -1642,3 +1642,35 @@ lemma TransformationD3(B: BooleanExpression, B': BooleanExpression,
 		}
 	}
 }
+
+function IfToSSACorrectnessLeft(B: BooleanExpression, S1: Statement, S2: Statement,
+		X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, // live-on-exit variables (the X2 of D.3)
+		XL3i: seq<Variable>, XL4f: seq<Variable>, XL5f: seq<Variable>, // live-on-exit instances (the XL2f of D.3)
+		Y: seq<Variable>): Statement
+{
+//	Live(XL3i+XL4f+XL5f+Y,SeqComp(IF(B,S1,S2),Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5))))
+	TransformationD3Left(B,S1,S2,X3+X4+X5,XL3i+XL4f+XL5f,Y)
+//	Live(XL2f          +Y,SeqComp(IF(B,S1,S2),Assignment(XL2f          ,seqVarToSeqExpr(X2      ))))
+}
+
+function IfToSSACorrectnessRight(B': BooleanExpression, S1': Statement, S2': Statement,
+		X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, // live-on-entry variables (the X1 of D.3)
+		XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>, // live-on-entry instances (the XL1i of D.3)
+		XL4f: seq<Variable>, XL5f: seq<Variable>, // along with XL1i: live-on-exit instances (the XL2f of D.3)
+		Y: seq<Variable>): Statement
+{
+//	Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),IF(B',S1',S2')))
+	TransformationD3Right(B',S1',S2',X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i,XL3i+XL4f+XL5f,Y)
+//	Live(XL2f          +Y,SeqComp(Assignment(XL1i               ,seqVarToSeqExpr(X1         )),IF(B',S1',S2')))
+}
+
+lemma IfToSSACorrectness(B: BooleanExpression, S1: Statement, S2: Statement, B': BooleanExpression, S1': Statement, S2': Statement,
+		X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, // live-on-entry variables (the X1 of D.3)
+		X5: seq<Variable>, // along with X3,X4: live-on-exit variables (the X2 of D.3)
+		XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>, // live-on-entry instances (the XL1i of D.3)
+		XL4f: seq<Variable>, XL5f: seq<Variable>, // along with XL1i: live-on-exit instances (the XL2f of D.3)
+		Y: seq<Variable>)
+	requires Valid(IfToSSACorrectnessLeft(B,S1,S2,X3,X4,X5,XL3i,XL4f,XL5f,Y))
+	requires Valid(IfToSSACorrectnessRight(B',S1',S2',X1,X2,X3,X4,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y))
+	ensures EquivalentStatments(IfToSSACorrectnessLeft(B,S1,S2,X3,X4,X5,XL3i,XL4f,XL5f,Y),
+			IfToSSACorrectnessRight(B',S1',S2',X1,X2,X3,X4,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y))

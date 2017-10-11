@@ -217,3 +217,8 @@ requires |X| == |E|
 		[ESubstituteVbyE(Es[0], X, E)]+ESeqSubstituteVbyE(Es[1..], X, E)
 }
 
+lemma ReversedDoubleSubstitutions(B: BooleanExpression, V1: seq<Variable>, V2: seq<Variable>)
+	requires |V1| == |V2|
+	requires setOf(V1) !! setOf(V2) // TODO: should be removed after its removal from BSubstitute; and then could use BSubstitute instead of BSubstituteVbyE below
+	requires setOf(V2) !! B.1
+	ensures EquivalentBooleanExpressions(B,BSubstituteVbyE(BSubstitute(B,V1,V2),V2,seqVarToSeqExpr(V1)))

@@ -363,6 +363,13 @@ predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
 lemma EquivalentPredicatesLemma(P1: Predicate, P2: Predicate)
 ensures EquivalentPredicates(P1,P2) <==> (forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s))
 
+predicate EquivalentBooleanExpressions(B1: BooleanExpression, B2: BooleanExpression) reads *
+{
+	B1.1 == B2.1 &&
+	(forall s :: B1.0.requires(s) <==> B2.0.requires(s)) &&
+	(forall s :: B1.0.requires(s) ==> B1.0(s) == B2.0(s))
+}
+
 predicate EquivalentStatments(S1: Statement, S2: Statement)
 	reads *
 	requires Valid(S1)
@@ -495,3 +502,7 @@ requires |LHS| == |RHS|
 requires sub(P, LHS, RHS).0.requires(s)
 ensures P.0(s) == sub(P, LHS, RHS).0(s)
  
+lemma Leibniz4(S1: Statement, S2: Statement, S2': Statement)
+requires Valid(S1) && Valid(S2) && Valid(S2')
+requires EquivalentStatments(S2,S2')
+ensures EquivalentStatments(SeqComp(S1,S2),SeqComp(S1,S2'))

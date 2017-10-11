@@ -1574,9 +1574,7 @@ lemma TransformationD3(B: BooleanExpression, B': BooleanExpression,
 	requires setOf(XL1i) !! B.1 // P3
 	requires setOf(XL1i) !! setOf(X1) // P2
 	requires |X1| == |XL1i|
-	requires var B'' := BSubstitute(B,X1,XL1i); B'.1 == B''.1 &&
-		(forall state :: B'.0.requires(state) <==> B''.0.requires(state)) &&
-		(forall state :: B'.0.requires(state) ==> B'.0(state) == B''.0(state)) // P1
+	requires EquivalentBooleanExpressions(B',BSubstitute(B,X1,XL1i)) // P1
 
 	requires Valid(TransformationD3Left(B,S1,S2,X2,XL2f,Y))
 	requires Valid(TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y))
@@ -1593,17 +1591,50 @@ lemma TransformationD3(B: BooleanExpression, B': BooleanExpression,
 				wp(T2,P).0(s);
 			== // def. of T2 and of TransformationD3Right
 				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2'))),P).0(s);
-			== { assert B'.0(s) == BSubstitute(B,X1,XL1i).0(s);
-						assert EquivalentStatments(IF(B',S1',S2'),IF(BSubstitute(B,X1,XL1i),S1',S2'));
-						assume wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2'))),P).0(s) == wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstitute(B,X1,XL1i),S1',S2'))),P).0(s);
-						} // from P10
+			== { assert B'.0(s) == BSubstitute(B,X1,XL1i).0(s); // from P1
+						var IF1,IF1',V := IF(BSubstitute(B,X1,XL1i),S1',S2'),IF(B',S1',S2'),XL2f+Y;
+						assert EquivalentStatments(IF1',IF1);
+						var A1 := Assignment(XL1i,seqVarToSeqExpr(X1));
+						var SC1,SC1' := SeqComp(A1,IF1),SeqComp(A1,IF1');
+						assert EquivalentStatments(SC1',SC1) by { assert EquivalentStatments(IF1',IF1); Leibniz4(A1,IF1,IF1'); }
+						assert EquivalentStatments(Live(V,SC1'),Live(V,SC1));
+						}
 				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstitute(B,X1,XL1i),S1',S2'))),P).0(s);
 			== { assert setOf(XL1i) !! setOf(X1); // P2
 						Law18b(S1',S2',BSubstitute(B,X1,XL1i),[],XL1i,[],seqVarToSeqExpr(X1)); }
 				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstituteVbyE(BSubstitute(B,X1,XL1i),XL1i,seqVarToSeqExpr(X1)),S1',S2'))),P).0(s);
-			== { assume wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(BSubstituteVbyE(BSubstitute(B,X1,XL1i),XL1i,seqVarToSeqExpr(X1)),S1',S2'))),P).0(s) ==
-						wp(Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2)))),P).0(s);
+			== {// remove redundant (reversed) double sub.
+					var B'' := BSubstituteVbyE(BSubstitute(B,X1,XL1i),XL1i,seqVarToSeqExpr(X1));
+					assert EquivalentBooleanExpressions(B,B'') by { assert setOf(XL1i) !! B.1; /* P3 */ ReversedDoubleSubstitutions(B,X1,XL1i); }
+					assert EquivalentStatments(IF(B,S1',S2'),IF(B'',S1',S2'));
+					var A1,IF1,IF1',V := Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B,S1',S2'),IF(B'',S1',S2'),XL2f+Y;
+					var SC1,SC2 := SeqComp(A1,IF1'),SeqComp(A1,IF1);
+					assert EquivalentStatments(SC1,SC2) by { assert EquivalentStatments(IF1',IF1); Leibniz4(A1,IF1',IF1); }
+					assert EquivalentStatments(Live(V,SC1),Live(V,SC2));
 					}
+				wp(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B,S1',S2'))),P).0(s);
+			== { assert setOf(XL1i) !! B.1; // P3
+						Law3(Assignment(XL1i,seqVarToSeqExpr(X1)),S1',S2',B); } // distribute statement over IF
+				wp(Live(XL2f+Y,IF(B,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1'),SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2'))),P).0(s);
+			== { Law21(B,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1'),SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2'),XL2f+Y); } // propagate liveness info.
+				wp(Live(XL2f+Y,IF(B,Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1')),
+					Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2')))),P).0(s);
+			== { var V := XL2f+Y;
+						var T1 := Live(V,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2))));
+						var T1' := Live(V,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1'));
+						assert EquivalentStatments(T1,T1'); // P4
+						var T2 := Live(V,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2))));
+						var T2' := Live(V,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2'));
+						assert EquivalentStatments(T2,T2'); // P5
+						var IF1,IF1' := IF(B,T1,T2),IF(B,T1',T2');
+						assert EquivalentStatments(IF1',IF1);
+						assert EquivalentStatments(Live(V,IF1'),Live(V,IF1));
+					}
+				wp(Live(XL2f+Y,IF(B,Live(XL2f+Y,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2)))),
+					Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))))),P).0(s);
+			== { Law21(B,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2))),SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2))),XL2f+Y); } // remove liveness info.
+				wp(Live(XL2f+Y,IF(B,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2))),SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2))))),P).0(s);
+			== { Law4(S1,S2,Assignment(XL2f,seqVarToSeqExpr(X2)),B); } // dist. IF over ";"
 				wp(Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2)))),P).0(s);
 			== // def. of T1 and of TransformationD3Left
 				wp(T1,P).0(s);

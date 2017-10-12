@@ -705,13 +705,102 @@ method {:verify false}OrganizeVariables(vars1: seq<Variable>, vars2: seq<Variabl
 	}
 }*/
 
-/*
-predicate Q1ToSSA(S: Statement, S': Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA)
+function InstancesAndVariablesBreakdown(S: Statement, X: seq<Variable>, 
+	liveOnEntry: set<Variable>, liveOnExit: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA): 
+	(seq<Variable>,seq<Variable>,seq<Variable>,seq<Variable>,seq<Variable>,seq<Variable>,
+	seq<Variable>,seq<Variable>,seq<Variable>,seq<Variable>,seq<Variable>)
+/*	requires ValidVsSSA(vsSSA)
+	reads vsSSA
 {
-	var X3 :=
-	EquivalentStatments(ToSSALeft(),ToSSARight())
+	var XL3iSet := liveOnEntry * liveOnExit;
+	assert XL3i <= liveOnEntry && XL3i <= liveOnExitX;
+	var XL3i := setToSeq(XL3i);
+	var X3 := vsSSA.instancesToVariables(XL3i);
+	var X3Set := setOf(X3);
+
+	var XL1iXL2iXL4i := liveOnEntry - XL3iSet;
+	assert XL1iXL2iXL4i <= liveOnEntry;
+	var temp := setToSeq(XL1iXL2iXL4i);
+	var X1X2X4 := vsSSA.instancesToVariables(temp);
+	var XL4fXL5f := liveOnExitX - XL3i;
+	assert XL4fXL5f <= liveOnExitX;
+	var temp2 := setToSeq(XL4fXL5f);
+	var X4X5 := vsSSA.instancesToVariables(temp2);
+	var X4Set := setOf(X1X2X4) * setOf(X4X5) * setOf(X);
+	//var X4 := vsSSA.instancesToVariables(X4Set)
+	var X5Set := setOf(X4X5) - X4Set;
+	var X5 := setToSeq(X5Set);
+	var XL5f := vsSSA.getInstancesOfVaribleSeq
+	
+	var X1X2 := setOf(X1X2X4) - X4;
+	var X2 := X1X2 * def(Assignment(LHS,RHS));
+	var X1 := X1X2 - X2;
+
+	(XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5)
+}*/
+
+function ToSSALeft(S: Statement, XL3i: seq<Variable>, XL4f: seq<Variable>, XL5f: seq<Variable>, 
+	X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, Y: seq<Variable>): Statement
+{
+	Live(XL3i+XL4f+XL5f+Y,SeqComp(S,Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5))))
 }
-*/
+
+function ToSSARight(XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,	
+	X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, 
+	S': Statement, XL4f: seq<Variable>, XL5f: seq<Variable>, Y: seq<Variable>): Statement
+{
+	Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),S'))
+}
+
+// TODO: move to a more central/reusable location: Util? Definitions?
+predicate mutuallyDisjoint3<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>)
+{
+	|setOf(s1+s2+s3)| == |s1|+|s2|+|s3|
+}
+
+predicate mutuallyDisjoint4<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>)
+{
+	|setOf(s1+s2+s3+s4)| == |s1|+|s2|+|s3|+|s4|
+}
+
+predicate mutuallyDisjoint5<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>)
+{
+	|setOf(s1+s2+s3+s4+s5)| == |s1|+|s2|+|s3|+|s4|+|s5|
+}
+
+predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>, s6: seq<T>)
+{
+	|setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
+}
+
+predicate PreconditionsOfToSSA(S: Statement, S': Statement, X: seq<Variable>, 
+	XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>, 
+	XL4f: seq<Variable>, XL5f: seq<Variable>, 
+	X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, 
+	Y: set<Variable>, XLs: set<Variable>)
+{
+	glob(S) <= setOf(X)+Y                                                                                    // P1
+	&& mutuallyDisjoint5(X1,X2,X3,X4,X5) && setOf(X1+X2+X3+X4+X5) <= setOf(X)                                // P2
+	&& mutuallyDisjoint6(XL1i,XL2i,XL3i,XL4i,XL4f,XL5f) && setOf(XL1i+XL2i+XL3i+XL4i+XL4f+XL5f) <= XLs       // P3
+	&& setOf(X) !! Y && XLs !! setOf(X)+Y                                                                    // P4
+	&& setOf(X1) !! setOf(X3) && setOf(X1+X3) !! def(S)                                                      // P5
+	&& mutuallyDisjoint3(X2,X4,X5) && setOf(X2+X4+X5) <= def(S)                                              // P6
+	&& mutuallyDisjoint4(X1,X2,X3,X4) && setOf(X) * (setOf(X3+X4+X5)-ddef(S)+input(S)) <= setOf(X1+X2+X3+X4) // P7
+}
+
+predicate CorrectnessOfToSSA(S: Statement, S': Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA)
+	reads * //vsSSA
+	requires ValidVsSSA(vsSSA)
+{
+	var xs := InstancesAndVariablesBreakdown(S,X,liveOnEntryX,liveOnExitX,XLs,vsSSA);
+	var XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5 := xs.0,xs.1,xs.2,xs.3,xs.4,xs.5,xs.6,xs.7,xs.8,xs.9,xs.10;
+	var Y' := fSetToSeq(Y);
+	PreconditionsOfToSSA(S,S',X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5,Y,XLs) ==>
+	Valid(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y')) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y')) &&
+	EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y'),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y')) // Q1
+	&& setOf(X) !! glob(S') // Q2
+}
+
 method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns(S': Statement)
 	requires Valid(S)
 	requires (Core(S))
@@ -732,7 +821,7 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 	ensures forall v :: v in X ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in Y ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in old(vsSSA.instancesOf) ==> v in vsSSA.instancesOf && (forall i :: i in old(vsSSA.instancesOf[v]) ==> i in vsSSA.instancesOf[v])
-//	ensures Q1ToSSA(S,S',X,liveOnEntryX,liveOnExitX,Y,XLs,vsSSA)
+//	ensures CorrectnessOfToSSA(S,S',X,liveOnEntryX,liveOnExitX,Y,XLs,vsSSA)
 {
 	//var vsSSA := new VariablesSSA(); // Create in main!
 
@@ -1642,6 +1731,8 @@ lemma TransformationD3(B: BooleanExpression, B': BooleanExpression,
 		}
 	}
 }
+
+//method TransformationD5(S: Statement, X: seq<Variable>, X: seq<Variable>) returns (S': Statement)
 
 function IfToSSACorrectnessLeft(B: BooleanExpression, S1: Statement, S2: Statement,
 		X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, // live-on-exit variables (the X2 of D.3)

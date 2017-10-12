@@ -313,8 +313,8 @@ function allVars(S: Statement): set<Variable>
 	}
 }
 
-function method setOf(s: seq<Variable>) : set<Variable>
-ensures forall v :: v in setOf(s) ==> v in s
+function method setOf<T>(s: seq<T>) : (res: set<T>)
+ensures forall v :: v in res <==> v in s
 {
 	set x | x in s
 }

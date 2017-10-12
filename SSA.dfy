@@ -1129,6 +1129,7 @@ method {:verify false}IfToSSA(B : BooleanExpression, S1 : Statement, S2 : Statem
 	ensures forall v :: v in X ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in Y ==> vsSSA.existsInstance(v)
 	ensures forall v :: v in old(vsSSA.instancesOf) ==> v in vsSSA.instancesOf && (forall i :: i in old(vsSSA.instancesOf[v]) ==> i in vsSSA.instancesOf[v])
+	//ensures CorrectnessOfToSSA(IF(B,S1,S2),S',X,liveOnEntryX,liveOnExitX,Y,XLs,vsSSA)
 {
 	// defined in thesis:
 	// toSSA.(IF ,X, (XL1i, XL2i, XL3i, XL4i), (XL3i, XL4f, XL5f), Y, XLs) is:
@@ -1298,7 +1299,27 @@ method {:verify false}IfToSSA(B : BooleanExpression, S1 : Statement, S2 : Statem
 	S' := IF(B', tempSeqComp1, tempSeqComp2);
 	//S' := IF(B', SeqComp(S1', Assignment(XL4fSeqThen + XL5fSeq, XL4t + XL5t)), SeqComp(S2', Assignment(XL4fSeqElse + XL5fSeq, XL4e + XL5e)));
 	assert Valid(S');
+	//LemmaIfToSSAIsCorrect(B,S1,S2,X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs,X1,X2,X3,X4,X5,S1',
+	//	XL4t,XL5t,XL4e,XL5e,X4d1,X4d2,X4d1d2,XL4d1t,XL4d1e,XL4d1d2t,XL4d1d2e,XL4d2i,XL4d1i,XL4d2e,XLs',XLs'',S2',vsSSA);
 }
+
+lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
+		X: seq<Variable>, XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,
+		XL4f: seq<Variable>, XL5f: seq<Variable>, Y: seq<Variable>, XLs: set<Variable>,
+		X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>,
+		S1': Statement,	XL4t: seq<Variable>, XL5t: seq<Variable>, XL4e: seq<Variable>, XL5e: seq<Variable>,
+		X4d1: seq<Variable>, X4d2: seq<Variable>, X4d1d2: seq<Variable>,
+		XL4d1t: seq<Variable>, XL4d1e: seq<Variable>, XL4d1d2t: seq<Variable>, XL4d1d2e: seq<Variable>, XL4d2i: seq<Variable>,
+		XL4d1i: seq<Variable>, XL4d2e: seq<Variable>, XLs': set<Variable>, XLs'': set<Variable>,
+		S2': Statement, vsSSA: VariablesSSA)
+	requires ValidVsSSA(vsSSA)
+	requires |X1+X2+X3+X4| == |XL1i+XL2i+XL3i+XL4i| && setOf(X1+X2+X3+X4) !! setOf(XL1i+XL2i+XL3i+XL4i)
+	requires var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
+		PreconditionsOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5,setOf(Y),XLs) &&
+		Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y)) &&
+		Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1',S2'),XL4f,XL5f,Y))
+	ensures var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
+		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,setOf(XL1i+XL2i+XL3i+XL4i),setOf(XL3i+XL4f+XL5f),setOf(Y),XLs,vsSSA)
 
 method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns (S'': Statement)
 	requires Valid(DO(B, S))

@@ -231,6 +231,7 @@ lemma RE4(S: Statement)
 //	ensures S.LocalDeclaration? ==> ddef(S) <= def(S)
 
 lemma RE5(S: Statement)
+	ensures glob(S) == def(S) + input(S)
 	//ensures S.LocalDeclaration? ==> vars(SeqComp(L,S)) == def(SeqComp(L,S)) + input(SeqComp(L,S))
 /*{
 	match S{

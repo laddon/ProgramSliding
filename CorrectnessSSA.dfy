@@ -1,5 +1,6 @@
 include "Definitions.dfy"
 include "Substitutions.dfy"
+include "RE.dfy"
 include "Util.dfy"
 include "Laws.dfy"
 
@@ -73,24 +74,53 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 		XL4d1t: seq<Variable>, XL4d1e: seq<Variable>, XL4d1d2t: seq<Variable>, XL4d1d2e: seq<Variable>, XL4d2i: seq<Variable>,
 		XL4d1i: seq<Variable>, XL4d2e: seq<Variable>, XLs': set<Variable>, XLs'': set<Variable>,
 		S2': Statement)
+	requires Core(S1) && Core(S2) && Core(S1') && Core(S2');
+	requires input(IF(B,S1,S2)) * X <= setOf(X1+X2+X3+X4) <= X //TODO: justify
 	requires |X1+X2+X3+X4| == |XL1i+XL2i+XL3i+XL4i| && setOf(X1+X2+X3+X4) !! setOf(XL1i+XL2i+XL3i+XL4i)
 	requires var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
 		PreconditionsOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5,Y,XLs) &&
 		Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y)) &&
 		Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1',S2'),XL4f,XL5f,Y))
+	requires mutuallyDisjoint6(XL4d1t,XL4d2e,XL4d1d2t,XL4d1d2e,XL5t,XL5e) && XLs !! setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		XLs' == XLs+setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		PreconditionsOfToSSA(S1,S1',X,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,X1,X2,X3,X4,X5,Y,XLs') &&
+		CorrectnessOfToSSA(S1,S1',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,Y,XLs')
+	requires XLs'' == XLs' + (glob(S1') - setOf(Y)) &&
+		PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
+		CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'')
 	ensures var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
 		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs)
-/*{
+{
 	var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
 	var S,S' := IF(B,S1,S2),IF(B',S1',S2');
-	// TODO: Be sure first that the breakdown is the same; is it???
-	var liveOnEntryX,liveOnExitX := setOf(XL1i+XL2i+XL3i+XL4i),setOf(XL3i+XL4f+XL5f);
-	var xs := InstancesAndVariablesBreakdown(S,X,liveOnEntryX,liveOnExitX,XLs,vsSSA);
-	var XL1i',XL2i',XL3i',XL4i',XL4f',XL5f',X1',X2',X3',X4',X5' := xs.0,xs.1,xs.2,xs.3,xs.4,xs.5,xs.6,xs.7,xs.8,xs.9,xs.10;
-	//and then...
-	assume Valid(ToSSALeft(S,XL3i',XL4f',XL5f',X3',X4',X5',Y)) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) &&
+	var liveOnEntry,liveOnExit := setOf(XL1i+XL2i+XL3i+XL4i),setOf(XL3i+XL4f+XL5f);
+	assume Valid(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y)) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) &&
 		EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y));// by {
-}/
+	assert X !! glob(S') by
+	{
+		assert glob(S') == B'.1 + glob(S1') + glob(S2') by { calc {
+			glob(S');
+		==
+			def(S') + input(S');
+		==
+			def(IF(B',S1',S2')) + input(IF(B',S1',S2'));
+		==
+			def(S1') + def(S2') + B'.1 + input(S1') + input(S2');
+		==
+			B'.1 + def(S1') + input(S1') + def(S2') + input(S2');
+		== { assert def(S1') + input(S1') == glob(S1') by { RE5(S1'); } }
+			B'.1 + glob(S1') + def(S2') + input(S2');
+		== { assert def(S2') + input(S2') == glob(S2') by { RE5(S2'); } }
+			B'.1 + glob(S1') + glob(S2');
+		}}
+		assert X !! B'.1;
+		assert X !! glob(S1');
+		assert X !! glob(S2') by {
+			assert PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
+				CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'');
+		}
+	}
+}
 /*
 /*	
 not sure about the parameters to D3, should figure it out and fix; and then
@@ -131,7 +161,6 @@ requires Valid(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))))
 	}	
 	assert setOf(X) !! glob(S'); // Q2
 }*/
-*/
 
 function TransformationD3Left(B: BooleanExpression, 
 		S1: Statement, S2: Statement,

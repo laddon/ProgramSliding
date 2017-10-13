@@ -88,37 +88,47 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 	requires XLs'' == XLs' + (glob(S1') - setOf(Y)) &&
 		PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
 		CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'')
-	ensures var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
-		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs)
+	ensures var B',S1'',S2'' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i),
+		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
+		SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e)));
+		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1'',S2''),X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs)
 {
-	var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
-	var S,S' := IF(B,S1,S2),IF(B',S1',S2');
+	var B',S1'',S2'' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i),
+		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
+		SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e)));
+	var S,S' := IF(B,S1,S2),IF(B',S1'',S2'');
 	var liveOnEntry,liveOnExit := setOf(XL1i+XL2i+XL3i+XL4i),setOf(XL3i+XL4f+XL5f);
+
 	assume Valid(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y)) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) &&
 		EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y));// by {
+
 	assert X !! glob(S') by
 	{
-		assert glob(S') == B'.1 + glob(S1') + glob(S2') by { calc {
+		assert glob(S') <= glob(S1') + glob(S2') + B'.1 + setOf(XL4f+XL5f) + setOf(XL4t+XL5t) + setOf(XL4e+XL5e) by { calc {
 			glob(S');
-		==
+		== { RE5(S'); }
 			def(S') + input(S');
 		==
-			def(IF(B',S1',S2')) + input(IF(B',S1',S2'));
+			def(IF(B',S1'',S2'')) + input(IF(B',S1'',S2''));
 		==
-			def(S1') + def(S2') + B'.1 + input(S1') + input(S2');
+			def(S1'') + def(S2'') + input(IF(B',S1'',S2''));
+		== { assert input(IF(B',S1'',S2'')) == B'.1 + input(S1'') + input(S2''); }
+			def(S1'') + def(S2'') + B'.1 + input(S1'') + input(S2'');
+		<=
+			def(S1') + setOf(XL4f+XL5f) + def(S2') + B'.1 + input(S1') + setOf(XL4t+XL5t) + input(S2') + setOf(XL4e+XL5e);
 		==
-			B'.1 + def(S1') + input(S1') + def(S2') + input(S2');
+			def(S1') + input(S1') + def(S2') + input(S2') + B'.1 + setOf(XL4f+XL5f) + setOf(XL4t+XL5t) + setOf(XL4e+XL5e);
 		== { assert def(S1') + input(S1') == glob(S1') by { RE5(S1'); } }
-			B'.1 + glob(S1') + def(S2') + input(S2');
+			glob(S1') + def(S2') + input(S2') + setOf(XL4f+XL5f) + B'.1 + setOf(XL4t+XL5t) + setOf(XL4e+XL5e);
 		== { assert def(S2') + input(S2') == glob(S2') by { RE5(S2'); } }
-			B'.1 + glob(S1') + glob(S2');
+			glob(S1') + glob(S2') + B'.1 + setOf(XL4f+XL5f) + setOf(XL4t+XL5t) + setOf(XL4e+XL5e);
 		}}
-		assert X !! B'.1;
 		assert X !! glob(S1');
-		assert X !! glob(S2') by {
-			assert PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
-				CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'');
-		}
+		assert X !! glob(S2');
+		assert X !! B'.1;
+		assert X !! setOf(XL4f+XL5f);
+		assert X !! setOf(XL4t+XL5t);
+		assert X !! setOf(XL4e+XL5e);
 	}
 }
 /*

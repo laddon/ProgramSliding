@@ -37,36 +37,35 @@ predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s
 	|setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
 }
 
-predicate PreconditionsOfToSSA(S: Statement, S': Statement, X: seq<Variable>, 
+predicate PreconditionsOfToSSA(S: Statement, S': Statement, X: set<Variable>, 
 	XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>, 
 	XL4f: seq<Variable>, XL5f: seq<Variable>, 
 	X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, 
 	Y: seq<Variable>, XLs: set<Variable>)
 {
-	glob(S) <= setOf(X+Y)                                                                                    // P1
-	&& mutuallyDisjoint5(X1,X2,X3,X4,X5) && setOf(X1+X2+X3+X4+X5) <= setOf(X)                                // P2
+	glob(S) <= X+setOf(Y)                                                                                    // P1
+	&& mutuallyDisjoint5(X1,X2,X3,X4,X5) && setOf(X1+X2+X3+X4+X5) <= X                                       // P2
 	&& mutuallyDisjoint6(XL1i,XL2i,XL3i,XL4i,XL4f,XL5f) && setOf(XL1i+XL2i+XL3i+XL4i+XL4f+XL5f) <= XLs       // P3
-	&& setOf(X) !! setOf(Y) && XLs !! setOf(X+Y)                                                             // P4
+	&& X !! setOf(Y) && XLs !! X+setOf(Y)                                                                    // P4
 	&& setOf(X1) !! setOf(X3) && setOf(X1+X3) !! def(S)                                                      // P5
 	&& mutuallyDisjoint3(X2,X4,X5) && setOf(X2+X4+X5) <= def(S)                                              // P6
-	&& mutuallyDisjoint4(X1,X2,X3,X4) && setOf(X) * (setOf(X3+X4+X5)-ddef(S)+input(S)) <= setOf(X1+X2+X3+X4) // P7
+	&& mutuallyDisjoint4(X1,X2,X3,X4) && X * (setOf(X3+X4+X5)-ddef(S)+input(S)) <= setOf(X1+X2+X3+X4) // P7
 }
 
-predicate CorrectnessOfToSSA(S: Statement, S': Statement,
+predicate CorrectnessOfToSSA(S: Statement, S': Statement, X: set<Variable>,
 	X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>,
 	XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,
 	XL4f: seq<Variable>, XL5f: seq<Variable>, Y: seq<Variable>, XLs: set<Variable>)
 	reads *
 {
-	var X := X1+X2+X3+X4+X5;
 	PreconditionsOfToSSA(S,S',X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5,Y,XLs) ==>
 	Valid(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y)) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) &&
 	EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) // Q1
-	&& setOf(X) !! glob(S') // Q2
+	&& X !! glob(S') // Q2
 }
 
 lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
-		X: seq<Variable>, XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,
+		X: set<Variable>, XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,
 		XL4f: seq<Variable>, XL5f: seq<Variable>, Y: seq<Variable>, XLs: set<Variable>,
 		X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>,
 		S1': Statement,	XL4t: seq<Variable>, XL5t: seq<Variable>, XL4e: seq<Variable>, XL5e: seq<Variable>,
@@ -80,7 +79,7 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 		Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y)) &&
 		Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1',S2'),XL4f,XL5f,Y))
 	ensures var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
-		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs)
+		CorrectnessOfToSSA(IF(B,S1,S2),IF(B',S1',S2'),X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,Y,XLs)
 /*{
 	var B' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i);
 	var S,S' := IF(B,S1,S2),IF(B',S1',S2');

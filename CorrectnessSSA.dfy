@@ -75,7 +75,8 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 		XL4d1i: seq<Variable>, XL4d2e: seq<Variable>, XLs': set<Variable>, XLs'': set<Variable>,
 		S2': Statement)
 	requires Core(S1) && Core(S2) && Core(S1') && Core(S2');
-	requires input(IF(B,S1,S2)) * X <= setOf(X1+X2+X3+X4) <= X //TODO: justify
+	// the following is actually given, see P7 of PreconditionsOfToSSA
+	// requires input(IF(B,S1,S2)) * X <= setOf(X1+X2+X3+X4) <= X
 	requires |X1+X2+X3+X4| == |XL1i+XL2i+XL3i+XL4i| && setOf(X1+X2+X3+X4) !! setOf(XL1i+XL2i+XL3i+XL4i)
 	requires var B',S1'',S2'' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i),
 		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
@@ -100,51 +101,85 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
 		SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e)));
 	var S,S' := IF(B,S1,S2),IF(B',S1'',S2'');
-	var liveOnEntry,liveOnExit := setOf(XL1i+XL2i+XL3i+XL4i),setOf(XL3i+XL4f+XL5f);
-
-	assume Valid(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y)) && Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) &&
-		EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y));// by {
+	
 	// Q1
-/*
-/*	
-not sure about the parameters to D3, should figure it out and fix; and then
-should show that the preconditions above indeed guarantee that the preconditions of D3 (below, after the appropriate parameter substitutions) all hold;
-and finally show that the postcondition of D3 (again, with the appropriate substitution) guarantee that our postconditions hold.
+	assert EquivalentStatments(ToSSALeft(S,XL3i,XL4f,XL5f,X3,X4,X5,Y),ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,S',XL4f,XL5f,Y)) by {
+		var liveOnEntry,liveOnExit := XL1i+XL2i+XL3i+XL4i,XL3i+XL4f+XL5f;
+		var liveOnEntryX,liveOnExitX := X1+X2+X3+X4,X3+X4+X5;
+		assert EquivalentStatments(TransformationD3Left(B,S1,S2,liveOnExitX,liveOnExit,Y),
+				TransformationD3Right(B',S1'',S2'',liveOnEntryX,liveOnEntry,liveOnExit,Y)) by {
+			// Ensuring D3 can be invoked (i.e. that its preconditions P1-P5 must hold):
+			/* 
+			recall we have (from PreconditionsToSSA, with S being IF(B,S1,S2)):
+		 glob(S) <= X+setOf(Y)                                                                                 // P1
+	&& mutuallyDisjoint5(X1,X2,X3,X4,X5) && setOf(X1+X2+X3+X4+X5) <= X                                       // P2
+	&& mutuallyDisjoint6(XL1i,XL2i,XL3i,XL4i,XL4f,XL5f) && setOf(XL1i+XL2i+XL3i+XL4i+XL4f+XL5f) <= XLs       // P3
+	&& X !! setOf(Y) && XLs !! X+setOf(Y)                                                                    // P4
+	&& setOf(X1) !! setOf(X3) && setOf(X1+X3) !! def(S)                                                      // P5
+	&& mutuallyDisjoint3(X2,X4,X5) && setOf(X2+X4+X5) <= def(S)                                              // P6
+	&& mutuallyDisjoint4(X1,X2,X3,X4) && X * (setOf(X3+X4+X5)-ddef(S)+input(S)) <= setOf(X1+X2+X3+X4)        // P7
 
-D.3:
-	Live(XL2f+Y,SeqComp(IF(B,S1,S2),Assignment(XL2f,seqVarToSeqExpr(X2))))
-==
-	Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),IF(B',S1',S2')))
-
-
-*/
-		var XL1i',XL2f',X1',X2' := setOf(XL1i+XL2i+XL3i+XL4i),X1+X2+X3+X4,
-		assert TransformationD3Left(B,S1,S2,X2,XL2f,Y),TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y) && 
-			EquivalentStatments(TransformationD3Left(B,S1,S2,X2,XL2f,Y),TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y)) by {
-		TransformationD3(B,B',S1,S2,S1',S2',X1,X2,XL1i,XL2i,XL2f,Y);
-
-/*
-requires Valid(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))))
-	requires Valid(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2')))
-	requires EquivalentStatments(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))),
-		Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2'))) // P5
-	requires Valid(Live(XL2f+Y,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2)))))
-	requires Valid(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1')))
-	requires EquivalentStatments(Live(XL2f+Y,SeqComp(S1,Assignment(XL2f,seqVarToSeqExpr(X2)))),
-		Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S1'))) // P4
-	requires setOf(XL1i) !! B.1 // P3
-	requires setOf(XL1i) !! setOf(X1) // P2
-	requires |X1| == |XL1i|
-	requires EquivalentBooleanExpressions(B',BSubstitute(B,X1,XL1i)) // P1
-
-	requires Valid(TransformationD3Left(B,S1,S2,X2,XL2f,Y))
-	requires Valid(TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y))
-	ensures EquivalentStatments(TransformationD3Left(B,S1,S2,X2,XL2f,Y),
-			TransformationD3Right(B',S1',S2',X1,XL1i,XL2f,Y))
 			*/
-	}	
-*/
+			assert |liveOnEntryX| == |liveOnEntry|;
+			assert EquivalentBooleanExpressions(B',BSubstitute(B,liveOnEntryX,liveOnEntry));                               // P1
+			assert setOf(liveOnEntry) !! setOf(liveOnEntryX);                                                              // P2
+			assert setOf(liveOnEntry) !! B.1 by {                                                                          // P3
+				assert B.1 <= X+setOf(Y) && setOf(liveOnEntry) <= XLs && X+setOf(Y) !! XLs;
+			}
+/*
+for P4 recall we have from the preconditions:
+	requires mutuallyDisjoint6(XL4d1t,XL4d2e,XL4d1d2t,XL4d1d2e,XL5t,XL5e) && XLs !! setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		XLs' == XLs+setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		PreconditionsOfToSSA(S1,S1',X,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,X1,X2,X3,X4,X5,Y,XLs') &&
+		CorrectnessOfToSSA(S1,S1',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,Y,XLs')
 
+such that S1' is in SSA form; yet we need some to prove a related equivalence on S1'' (see p.207 in the sliding thesis).
+and then similarly for S2''. (reuse?)
+*/
+			assume Valid(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
+			assume Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1'')));
+			assume EquivalentStatments(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
+				Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1'')));                     // P4
+			assume Valid(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
+			assume Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2'')));
+			assume EquivalentStatments(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
+				Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2'')));                     // P5
+
+			assert Valid(TransformationD3Left(B,S1,S2,liveOnExitX,liveOnExit,Y)) by {
+				assert Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y));
+				calc {
+					ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y);
+				==
+					Live(XL3i+XL4f+XL5f+Y,SeqComp(IF(B,S1,S2),Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5))));
+				==
+					Live(liveOnExit+Y,SeqComp(IF(B,S1,S2),Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX))));
+				==
+					TransformationD3Left(B,S1,S2,liveOnExitX,liveOnExit,Y);
+				}
+			}
+			assert Valid(TransformationD3Right(B',S1'',S2'',liveOnEntryX,liveOnEntry,liveOnExit,Y)) by {
+				assert Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1'',S2''),XL4f,XL5f,Y));
+				calc {
+					ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1'',S2''),XL4f,XL5f,Y);
+				==
+					Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),IF(B',S1'',S2'')));
+				==
+					Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),IF(B',S1'',S2'')));
+				==
+					TransformationD3Right(B',S1'',S2'',liveOnEntryX,liveOnEntry,liveOnExit,Y);
+				}
+			}
+
+			TransformationD3(B,B',S1,S2,S1'',S2'',liveOnEntryX,liveOnExitX,liveOnEntry,liveOnExit,Y);
+			assert EquivalentStatments(TransformationD3Left(B,S1,S2,liveOnExitX,liveOnExit,Y),
+				TransformationD3Right(B',S1'',S2'',liveOnEntryX,liveOnEntry,liveOnExit,Y)); // Postcondition of D.3
+			assert EquivalentStatments(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y),
+				ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1'',S2''),XL4f,XL5f,Y));
+		}
+		assert EquivalentStatments(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y),
+			ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1'',S2''),XL4f,XL5f,Y)) &&
+			IF(B,S1,S2) == S && IF(B',S1'',S2'') == S';
+	}
 	// Q2
 	assert X !! glob(S') by
 	{
@@ -195,7 +230,7 @@ function TransformationD3Right(B': BooleanExpression,
 lemma TransformationD3(B: BooleanExpression, B': BooleanExpression, 
 		S1: Statement, S2: Statement, S1': Statement, S2': Statement,
 		X1: seq<Variable>, X2: seq<Variable>,
-		XL1i: seq<Variable>, XL2i: seq<Variable>, XL2f: seq<Variable>, Y: seq<Variable>)
+		XL1i: seq<Variable>, XL2f: seq<Variable>, Y: seq<Variable>)
 	requires Valid(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))))
 	requires Valid(Live(XL2f+Y,SeqComp(Assignment(XL1i,seqVarToSeqExpr(X1)),S2')))
 	requires EquivalentStatments(Live(XL2f+Y,SeqComp(S2,Assignment(XL2f,seqVarToSeqExpr(X2)))),

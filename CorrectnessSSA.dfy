@@ -18,24 +18,34 @@ function ToSSARight(XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable
 }
 
 // TODO: move to a more central/reusable location: Util? Definitions?
+predicate mutuallyDisjoint<T>(seqs: seq<seq<T>>)
+{
+	forall i,j :: 0 <= i < j < |seqs| ==> setOf(seqs[i]) !! setOf(seqs[j])
+}
+
+lemma LemmaDisjointUnions<T>(seqs: seq<seq<T>>)
+	requires mutuallyDisjoint(seqs)
+	ensures forall i1,j1,i2,j2 :: 0 <= i1 < j1 < |seqs| && 0 <= i2 < j2 < |seqs| && i1 != i2 && i1 != j2 && j1 != i2 && j1 != j2 ==> 
+		setOf(seqs[i1]+seqs[j1]) !! setOf(seqs[i2]+seqs[j2])
+
 predicate mutuallyDisjoint3<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>)
 {
-	|setOf(s1+s2+s3)| == |s1|+|s2|+|s3|
+	mutuallyDisjoint([s1,s2,s3])// |setOf(s1+s2+s3)| == |s1|+|s2|+|s3|
 }
 
 predicate mutuallyDisjoint4<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>)
 {
-	|setOf(s1+s2+s3+s4)| == |s1|+|s2|+|s3|+|s4|
+	mutuallyDisjoint([s1,s2,s3,s4])// |setOf(s1+s2+s3+s4)| == |s1|+|s2|+|s3|+|s4|
 }
 
 predicate mutuallyDisjoint5<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>)
 {
-	|setOf(s1+s2+s3+s4+s5)| == |s1|+|s2|+|s3|+|s4|+|s5|
+	mutuallyDisjoint([s1,s2,s3,s4,s5])// |setOf(s1+s2+s3+s4+s5)| == |s1|+|s2|+|s3|+|s4|+|s5|
 }
 
 predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>, s6: seq<T>)
 {
-	|setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
+	mutuallyDisjoint([s1,s2,s3,s4,s5,s6])// |setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
 }
 
 predicate PreconditionsOfToSSA(S: Statement, S': Statement, X: set<Variable>, 
@@ -91,6 +101,10 @@ lemma LemmaIfToSSAIsCorrect(B: BooleanExpression, S1: Statement, S2: Statement,
 	requires XLs'' == XLs' + (glob(S1') - setOf(Y)) &&
 		PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
 		CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'')
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(S1,Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5)))));
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))))));
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(S2,Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5)))));
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e))))));
 	ensures var B',S1'',S2'' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i),
 		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
 		SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e)));
@@ -136,14 +150,18 @@ for P4 recall we have from the preconditions:
 such that S1' is in SSA form; yet we need some to prove a related equivalence on S1'' (see p.207 in the sliding thesis).
 and then similarly for S2''. (reuse?)
 */
-			assume Valid(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
-			assume Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1'')));
-			assume EquivalentStatments(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
-				Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1'')));                     // P4
-			assume Valid(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
-			assume Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2'')));
-			assume EquivalentStatments(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
-				Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2'')));                     // P5
+			assert Valid(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
+			assert Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1'')));
+			assert EquivalentStatments(Live(liveOnExit+Y,SeqComp(S1,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
+					Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S1''))) by {               // P4
+				LemmaD3PreconditionsP4andP5(S1,S1',S1'',X,liveOnEntry,liveOnEntryX,liveOnExit,liveOnExitX,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,XL4t,XL5t,X1,X2,X3,X4,X5,Y,XLs);
+			}
+			assert Valid(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))));
+			assert Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2'')));
+			assert EquivalentStatments(Live(liveOnExit+Y,SeqComp(S2,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
+					Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S2''))) by {               // P5
+				LemmaD3PreconditionsP4andP5(S2,S2',S2'',X,liveOnEntry,liveOnEntryX,liveOnExit,liveOnExitX,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs);
+			}
 
 			assert Valid(TransformationD3Left(B,S1,S2,liveOnExitX,liveOnExit,Y)) by {
 				assert Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y));
@@ -210,6 +228,38 @@ and then similarly for S2''. (reuse?)
 		assert X !! setOf(XL4e+XL5e);
 	}
 }
+
+lemma LemmaD3PreconditionsP4andP5(S: Statement, S': Statement, S'': Statement,
+	X: set<Variable>, liveOnEntry: seq<Variable>, liveOnEntryX: seq<Variable>, liveOnExit: seq<Variable>, liveOnExitX: seq<Variable>,
+	XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>,
+	XL4f: seq<Variable>, XL5f: seq<Variable>, XL4phi: seq<Variable>, XL5phi: seq<Variable>,
+	X1: seq<Variable>, X2: seq<Variable>, X3: seq<Variable>, X4: seq<Variable>, X5: seq<Variable>, Y: seq<Variable>, XLs: set<Variable>)
+	requires Valid(Live(liveOnExit+Y,SeqComp(S,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))))
+	requires Valid(Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S'')))
+	requires S'' == SeqComp(S',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4phi+XL5phi)))
+
+	requires |X1+X2+X3+X4| == |XL1i+XL2i+XL3i+XL4i| && setOf(X1+X2+X3+X4) !! setOf(XL1i+XL2i+XL3i+XL4i)
+	//requires mutuallyDisjoint4(XL4f,XL5f,XL3i,Y);
+/*	requires var B',S1'',S2'' := BSubstitute(B,X1+X2+X3+X4,XL1i+XL2i+XL3i+XL4i),
+		SeqComp(S1',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4t+XL5t))),
+		SeqComp(S2',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4e+XL5e)));
+		PreconditionsOfToSSA(IF(B,S1,S2),IF(B',S1'',S2''),X,XL1i,XL2i,XL3i,XL4i,XL4f,XL5f,X1,X2,X3,X4,X5,Y,XLs) &&
+		Valid(ToSSALeft(IF(B,S1,S2),XL3i,XL4f,XL5f,X3,X4,X5,Y)) &&
+		Valid(ToSSARight(XL1i,XL2i,XL3i,XL4i,X1,X2,X3,X4,IF(B',S1'',S2''),XL4f,XL5f,Y))
+	requires mutuallyDisjoint6(XL4d1t,XL4d2e,XL4d1d2t,XL4d1d2e,XL5t,XL5e) && XLs !! setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		XLs' == XLs+setOf(XL4d1t+XL4d2e+XL4d1d2t+XL4d1d2e+XL5t+XL5e) &&
+		PreconditionsOfToSSA(S1,S1',X,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,X1,X2,X3,X4,X5,Y,XLs') &&
+		CorrectnessOfToSSA(S1,S1',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4t,XL5t,Y,XLs')
+	requires XLs'' == XLs' + (glob(S1') - setOf(Y)) &&
+		PreconditionsOfToSSA(S2,S2',X,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,X1,X2,X3,X4,X5,Y,XLs'') &&
+		CorrectnessOfToSSA(S2,S2',X,X1,X2,X3,X4,X5,XL1i,XL2i,XL3i,XL4i,XL4e,XL5e,Y,XLs'')
+	*/
+	// TODO: are the following needed?
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(S,Assignment(XL3i+XL4f+XL5f,seqVarToSeqExpr(X3+X4+X5)))));
+	requires Valid(Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),SeqComp(S',Assignment(XL4f+XL5f,seqVarToSeqExpr(XL4phi+XL5phi))))));
+	
+	ensures EquivalentStatments(Live(liveOnExit+Y,SeqComp(S,Assignment(liveOnExit,seqVarToSeqExpr(liveOnExitX)))),
+					Live(liveOnExit+Y,SeqComp(Assignment(liveOnEntry,seqVarToSeqExpr(liveOnEntryX)),S'')))
 
 function TransformationD3Left(B: BooleanExpression, 
 		S1: Statement, S2: Statement,

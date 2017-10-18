@@ -332,11 +332,12 @@ method GetXandE(LHS: seq<Variable>, RHS: seq<Expression>, X: set<Variable>, inde
 	ensures RHS == old(RHS)
 	ensures X == old(X)
 	ensures |XSeq| == |ESeq| == |indexSeq|
+	ensures setOf(XSeq) <= setOf(LHS);
 {
 	if LHS == [] { XSeq:= []; ESeq := []; indexSeq := []; }
 	else
 	{
-		var x, e, i := [], [], [];
+		var x, e, i;
 		var isVariableInSet := IsVariableInSet(LHS[0], X);
 		
 		if isVariableInSet == true
@@ -345,10 +346,30 @@ method GetXandE(LHS: seq<Variable>, RHS: seq<Expression>, X: set<Variable>, inde
 			e := [RHS[0]];
 			i := [index];
 		}
-
+		else
+		{
+			x := [];
+			e := [];
+			i := [];
+		}
+		assert x == [] || x == [LHS[0]];
+		assert x <= [LHS[0]];
 		var XSeq', ESeq', indexSeq' := GetXandE(LHS[1..], RHS[1..], X, index + 1);
 
 		XSeq := x + XSeq';
+
+		assert setOf(XSeq) <= setOf(LHS) by { calc {
+			setOf(XSeq);
+		== 
+			setOf(x + XSeq');
+		<=
+			setOf(x + LHS[1..]);
+		<= { assert x <= [LHS[0]] && LHS[1..] == LHS[1..] ==> setOf(x + LHS[1..]) <= setOf([LHS[0]] + LHS[1..]); }
+			setOf([LHS[0]] + LHS[1..]);
+		== 
+			setOf(LHS);
+		}}
+
 		ESeq := e + ESeq';
 		indexSeq := i + indexSeq';
 	}
@@ -504,44 +525,28 @@ method GetNewRHS(indices: seq<int>, E: seq<Expression>, index: int) returns (RHS
 	RHS' := [];
 }*/
 
-method {:verify false}FindVariableIndexInVariableSequence2(v: Variable, V: seq<Variable>) returns (i: int)
-	requires v in V
-	ensures i >= 0 && i < |V|
+method OrganizeVariables4(instances: seq<Variable>, vsSSA: VariablesSSA) returns (res: seq<Variable>)
+	requires ValidVsSSA(vsSSA)
+	requires forall v :: v in instances ==> vsSSA.existsVariable2(v)
+	decreases instances
+	ensures forall i :: i in res ==> vsSSA.existsInstance(i)
+	ensures |instances| == |res|
+	ensures ValidVsSSA(vsSSA)	
 {
-	if |V| == 1 { i := 0; }
-	else if V[0] == v { i := 0; }
+	// For example:
+	// instances = [sum2, i2]
+	// res = [sum, i]
+
+	if instances == [] { res := []; }
 	else
 	{
-		i := FindVariableIndexInVariableSequence2(v, V[1..]);
-		i := i + 1;
+		var v := vsSSA.getVariableInRegularFormFunc(instances[0]);
+		var res' := OrganizeVariables4(instances[1..], vsSSA);
+
+		res := [v] + res';
+
 	}
 }
-
-method {:verify false}FindVariableIndexInVariableSequence(v: Variable, V: seq<Variable>) returns (i: int)
-	ensures i >= -1 && i < |V|
-{
-	if |V| == 0 { i := -1; }
-	else if V[0] == v { i := 0; }
-	else
-	{
-		i := FindVariableIndexInVariableSequence(v, V[1..]);
-		i := i + 1;
-	}
-}
-
-/*method FindVariableIndexInVariableSequence(v: Variable, V: seq<Variable>) returns (i: int)
-	requires |V| >= 1
-	ensures i >= 0 && i < |V|
-{
-	if |V| == 1 { i := 0; }
-	else if V[0] == v { i := 0; }
-	else
-	{
-		i := FindVariableIndexInVariableSequence(v, V[1..]);
-		i := i + 1;
-	}
-}*/
-
 
 predicate matching1(vars: seq<Variable>, instances: seq<Variable>, vsSSA: VariablesSSA)
 	requires ValidVsSSA(vsSSA)
@@ -567,7 +572,6 @@ method OrganizeVariables3(vars1: seq<Variable>, instances2: set<Variable>, vsSSA
 	ensures matching1(vars1, res, vsSSA)
 	ensures |vars1| == |res|
 	ensures ValidVsSSA(vsSSA)
-	
 {
 	// For example:
 	// vars1 = [sum, i]
@@ -640,70 +644,6 @@ method OrganizeVariables3(vars1: seq<Variable>, instances2: set<Variable>, vsSSA
 		res := [i1] + res';
 	}
 }
-
-
-method {:verify false}OrganizeVariables2(vars1: seq<Variable>, instances2: seq<Variable>, vars2: seq<Variable>, vsSSA: VariablesSSA) returns (res: seq<Variable>)
-	requires ValidVsSSA(vsSSA)
-	requires forall v :: v in vars1 ==> vsSSA.existsInstance(v)
-	requires forall v :: v in vars2 ==> vsSSA.existsInstance(v)
-	requires forall i :: i in instances2 ==> vsSSA.existsVariable2(i)
-	requires |vars2| == |instances2|
-	requires forall v :: v in vars1 ==> v in vars2
-	ensures ValidVsSSA(vsSSA)
-	ensures |vars1| == |res|
-{
-	if vars1 == [] { res := []; }
-	else
-	{
-		var index := FindVariableIndexInVariableSequence2(vars1[0], vars2);
-		assert index >= 0 && index < |vars2|;
-		var res' := OrganizeVariables2(vars1[1..], instances2, vars2, vsSSA);
-
-		res := [instances2[index]] + res';
-	}
-}
-
-
-method {:verify false}OrganizeVariables(vars1: seq<Variable>, vars2: seq<Variable>, vsSSA: VariablesSSA) returns (res: seq<Variable>)
-	requires ValidVsSSA(vsSSA)
-	requires forall i :: i in vars1 ==> vsSSA.existsVariable2(i)
-	requires forall i :: i in vars2 ==> vsSSA.existsVariable2(i)
-	ensures ValidVsSSA(vsSSA)
-	//ensures |vars1| == |res|
-{
-	if vars1 == [] { res := []; }
-	else
-	{
-		var v1 := vsSSA.getVariableInRegularFormFunc(vars1[0]);
-		var vars2Variables := vsSSA.instancesToVariables(vars2);
-		var index := FindVariableIndexInVariableSequence(v1, vars2Variables);
-		var res' := OrganizeVariables(vars1[1..], vars2, vsSSA);
-
-		res := res';
-
-		if index != -1 { res := [vars2[index]] + res'; }
-	}
-}
-
-/*method OrganizeVariables(vars1: seq<Variable>, vars2: seq<Variable>, vsSSA: VariablesSSA) returns (res: seq<Variable>)
-	requires ValidVsSSA(vsSSA)
-	requires forall i :: i in vars1 ==> vsSSA.existsVariable2(i)
-	requires forall i :: i in vars2 ==> vsSSA.existsVariable2(i)
-	requires |vars1| >= 0 && |vars2| >= 1
-	ensures ValidVsSSA(vsSSA)
-{
-	if vars1 == [] { res := []; }
-	else
-	{
-		var v1 := vsSSA.getVariableInRegularForm(vars1[0]);
-		var vars2Variables := vsSSA.instancesToVariables(vars2);
-		var index := FindVariableIndexInVariableSequence(v1, vars2Variables);
-		var res' := OrganizeVariables(vars1[1..], vars2, vsSSA);
-
-		assert index < |vars2| && index >= 0;
-		res := [vars2[index]] + res';
-	}
-}*/
 
 method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns(S': Statement)
 	requires Valid(S)
@@ -861,7 +801,7 @@ method {:verify false}AssignmentToSSA(LHS: seq<Variable>, RHS: seq<Expression>, 
 	assert Valid(S');
 }
 
-method {:verify true}SeqCompToSSA(S1: Statement, S2: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns (S': Statement)
+method {:verify false}SeqCompToSSA(S1: Statement, S2: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOnExitX: set<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns (S': Statement)
 	requires Valid(SeqComp(S1, S2))
 	requires ValidVsSSA(vsSSA)
 	requires forall i :: i in liveOnEntryX ==> vsSSA.existsVariable2(i)
@@ -1364,9 +1304,13 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 	assert Valid(S'');
 }
 
-method {:verify false}FromSSA(S': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)
+method {:verify true}FromSSA(S': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)
 	requires ValidVsSSA(vsSSA)
 	requires Valid(S')
+	requires S'.Assignment? ==> forall i :: i in S'.LHS ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XL1i ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XL2f ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
@@ -1374,29 +1318,36 @@ method {:verify false}FromSSA(S': Statement, X: seq<Variable>, XL1i: seq<Variabl
 	S := MergeVars(S', XLs, X, XL1i, XL2f, Y, vsSSA);
 }
 
-method {:verify false}MergeVars(S': Statement, XLs: set<Variable>, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)
+method {:verify true}MergeVars(S': Statement, XLs: set<Variable>, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)
 	requires ValidVsSSA(vsSSA)
 	requires Valid(S')
+	requires S'.Assignment? ==> forall i :: i in S'.LHS ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XL1i ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XL2f ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
 {
 	match S' {
-		//case Assignment(LHS,RHS) => S := AssignmentFromSSA(LHS, RHS, XLs, X, XL1i, XL2f, Y, vsSSA);
-		case Assignment(LHS,RHS) => S := Skip;
-		case SeqComp(S1',S2') => S := SeqCompFromSSA(S1', S2', XLs, X, XL1i, XL2f, Y, vsSSA);
-		case IF(B0',Sthen',Selse') => S := IfFromSSA(B0', Sthen', Selse', XLs, X, XL1i, XL2f, Y, vsSSA);
-		case DO(B',S') => S := DoFromSSA(B', S', XLs, X, XL1i, XL2f, Y, vsSSA);
+		case Assignment(LHS',RHS') => S := Skip;//AssignmentFromSSA(LHS', RHS', XLs, X, XL1i, XL2f, Y, vsSSA);
+		case SeqComp(S1',S2') => S := Skip;//SeqCompFromSSA(S1', S2', XLs, X, XL1i, XL2f, Y, vsSSA);
+		case IF(B0',Sthen',Selse') => S := Skip;//IfFromSSA(B0', Sthen', Selse', XLs, X, XL1i, XL2f, Y, vsSSA);
+		case DO(B',S') => S := Skip;//DoFromSSA(B', S', XLs, X, XL1i, XL2f, Y, vsSSA);
 		case LocalDeclaration(L,S0) => S := Skip;
+		case Live(L,S0) => S := Skip; // TODO?
+		case Assert(B) => S := Skip; // TODO?
 		case Skip => S := Skip;
 	}
 }
 
-/*method {:verify false}AssignmentFromSSA(LHS: seq<Variable>, RHS: seq<Expression>, XLs: set<Variable>, X: seq<Variable>, XLi: seq<Variable>, XLf: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns (S: Statement)
+method {:verify true}AssignmentFromSSA(LHS': seq<Variable>, RHS': seq<Expression>, XLs: set<Variable>, X: seq<Variable>, XLi: seq<Variable>, XLf: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns (S: Statement)
 	requires ValidVsSSA(vsSSA)
-	requires Valid(Assignment(LHS,RHS))
+	requires Valid(Assignment(LHS',RHS'))
+	requires forall i :: i in LHS' ==> vsSSA.existsVariable2(i)
 	requires forall i :: i in XLi ==> vsSSA.existsVariable2(i)
 	requires forall i :: i in XLf ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
 {
@@ -1405,77 +1356,89 @@ method {:verify false}MergeVars(S': Statement, XLs: set<Variable>, X: seq<Variab
 	// XLs, X, (XL1i, XL2i, XL3i, XL4i, XL7i, XL8i), (XL1f, XL3f, XL5f, XL7i), Y) is:
 	// " X3,X4,X5,X6,Y1 := E1,E2,E3,E4,E5 "
 	
-	var Y1 := Y * def(Assignment(LHS, RHS)); // Y1 חיתוך בין Y ל def
-	var Y1Seq, E5' := GetXandE(LHS, RHS, Y1);
+	var Y1 := Y * def(Assignment(LHS', RHS'));
+	var Y1Seq, E5', indexSeqY1 := GetXandE(LHS', RHS', Y1, 0);
 
 	var XL7i := setOf(XLi) * setOf(XLf);
-	assert XL7i <= setOf(XLi) && XL7i <= setOf(XLf);
+	assert XL7i <= setOf(XLi);
 	var temp := setToSeq(XL7i);
 	var X7Seq := vsSSA.instancesToVariables(temp);
 	var X7 := setOf(X7Seq);
-
-	var XL1iXL2i := setOf(XLi) * setOf(RHS);
-	assert XL1iXL2i <= setOf(XLi) && XL1iXL2i <= setOf(RHS);
+	
+	var XL1iXL2i := setOf(XLi) * varsInExps(RHS');
+	assert XL1iXL2i <= setOf(XLi);
 	temp := setToSeq(XL1iXL2i);
 	var X1X2 := vsSSA.instancesToVariables(temp);
+
 	var XL3iXL4iXL8i := setOf(XLi) - XL1iXL2i - XL7i;
 	assert XL3iXL4iXL8i <= setOf(XLi);
 	temp := setToSeq(XL3iXL4iXL8i);
 	var X3X4X8 := vsSSA.instancesToVariables(temp);
+
 	var XL1fXL3fXL5f := setOf(XLf) - XL7i;
 	assert XL1fXL3fXL5f <= setOf(XLf);
 	temp := setToSeq(XL1fXL3fXL5f);
-	assert forall i :: i in temp ==> vsSSA.existsVariable2(i);
 	var X1X3X5 := vsSSA.instancesToVariables(temp);
 
 	var X3 := setOf(X1X3X5) * setOf(X3X4X8);
 	temp := setToSeq(X3);
 	var X3Instances := vsSSA.getInstancesOfVaribleSeq(temp);
-	var XL3fSeq, E1' := GetXandE(LHS, RHS, setOf(X3Instances));
+	var XL3fSeq, E1', indexSeqXL3f := GetXandE(LHS', RHS', setOf(X3Instances), 0);
 
 	var XL1fXL5f := XL1fXL3fXL5f - setOf(XL3fSeq);
 	assert XL1fXL5f <= XL1fXL3fXL5f;
 	temp := setToSeq(XL1fXL5f);
 	var X1X5 := vsSSA.instancesToVariables(temp);
+
 	var X1 := setOf(X1X2) * setOf(X1X5);
 	temp := setToSeq(X1);
 	var X1Instances := vsSSA.getInstancesOfVaribleSeq(temp);
-	var XL1i := setOf(RHS) * setOf(X1Instances);
-	var XL1f := setOf(LHS) * setOf(X1Instances);
+	var XL1i := varsInExps(RHS') * setOf(X1Instances);
+	var XL1f := setOf(LHS') * setOf(X1Instances);
+
 	var XL5f := XL1fXL5f - XL1f;
-	var XL5fSeq, E3' := GetXandE(LHS, RHS, XL5f);
-	var X5SeqTemp := vsSSA.instancesToVariables(XL5fSeq);
+	var XL5fSeq, E3', indexSeqXL5f := GetXandE(LHS', RHS', XL5f, 0);
+	temp := setToSeq(XL5f);
+	var X5SeqTemp := vsSSA.instancesToVariables(temp);
 	var X5 := setOf(X5SeqTemp);
 
-	var XL2XL4XL6 := setOf(LHS) - XL1f - setOf(XL3fSeq) - XL5f - Y1;
-	var XL2i := XL1iXL2i - XL1i;
 	var X2 := setOf(X1X2) - X1;
 	temp := setToSeq(X2);
 	var X2Instances := vsSSA.getInstancesOfVaribleSeq(temp);
-	var XL2 := setOf(RHS) * setOf(X2Instances);
+	var XL2 := varsInExps(RHS') * setOf(X2Instances);
+
+	var XL2XL4XL6 := setOf(LHS') - XL1f - setOf(XL3fSeq) - XL5f - Y1;
+	assert XL2XL4XL6 <= setOf(LHS');
 	var XL4XL6 := XL2XL4XL6 - XL2;
+	assert XL4XL6 <= XL2XL4XL6;
 	temp := setToSeq(XL4XL6);
 	var X4X6 := vsSSA.instancesToVariables(temp);
 	var X4 := setOf(X3X4X8) * setOf(X4X6);
 	var X6 := setOf(X4X6) - X4;
 	temp := setToSeq(X4);
 	var X4Instances := vsSSA.getInstancesOfVaribleSeq(temp);
-	var XL4 := setOf(X4Instances) * setOf(LHS);
+	var XL4 := setOf(X4Instances) * setOf(LHS');
 	var XL6 := XL4XL6 - XL4;
-	var XL4Seq, E2' := GetXandE(LHS, RHS, XL4);
-	var XL6Seq, E4' := GetXandE(LHS, RHS, XL6);
+	var XL4Seq, E2', indexSeqXL4 := GetXandE(LHS', RHS', XL4, 0);
+	var XL6Seq, E4', indexSeqXL6 := GetXandE(LHS', RHS', XL6, 0);
 
 	var X8 := setOf(X3X4X8) - X3 - X4;
 	var XL3i := setOf(X3Instances) * setOf(XLi);
 	var XL4i := setOf(X4Instances) * setOf(XLi);
 	var XL8i := XL3iXL4iXL8i - XL3i - XL4i;
+	var XL2i := XL1iXL2i - XL1i;
 
 	////////////////////////////////////////
 
-	var X3Seq := InstancesSetToSeq(X3, XL3fSeq, vsSSA);
+	var X3Seq := OrganizeVariables4(XL3fSeq, vsSSA);
+	var X4Seq := OrganizeVariables4(XL4Seq, vsSSA);
+	var X5Seq := OrganizeVariables4(XL5fSeq, vsSSA);
+	var X6Seq := OrganizeVariables4(XL6Seq, vsSSA);
+	
+	/*var X3Seq := InstancesSetToSeq(X3, XL3fSeq, vsSSA);
 	var X4Seq := InstancesSetToSeq(X4, XL4Seq, vsSSA);
 	var X5Seq := InstancesSetToSeq(X5, XL5fSeq, vsSSA);
-	var X6Seq := InstancesSetToSeq(X6, XL6Seq, vsSSA);
+	var X6Seq := InstancesSetToSeq(X6, XL6Seq, vsSSA);*/
 
 	////////////////////////////////////////
 
@@ -1487,13 +1450,28 @@ method {:verify false}MergeVars(S': Statement, XLs: set<Variable>, X: seq<Variab
 	E4 := SubstitueExpressionSeq(E4', [XL1i, XL2i, XL3i, XL4i, XL7i, XL8i], [X1, X2, X3, X4, X7, X8]);
 	E5 := SubstitueExpressionSeq(E5', [XL1i, XL2i, XL3i, XL4i, XL7i, XL8i], [X1, X2, X3, X4, X7, X8]);
 
-	S := Assignment(X3Seq + X4Seq + X5Seq + X6Seq + Y1Seq, E1 + E2 + E3 + E4 + E5);
-	//S := Skip;
-}*/
+	assert |E1| == |E1'| == |XL3fSeq| == |X3Seq|;
+	assert |E2| == |E2'| == |XL4Seq| == |X4Seq|;
+	assert |E3| == |E3'| == |XL5fSeq| == |X5Seq|;
+	assert |E4| == |E4'| == |XL6Seq| == |X6Seq|;
+	assert |E5| == |E5'| == |Y1Seq|;
+
+	var LHS := X3Seq + X4Seq + X5Seq + X6Seq + Y1Seq;
+	var RHS := E1 + E2 + E3 + E4 + E5;
+
+	S := Assignment(LHS, RHS);
+	assert |LHS| == |RHS|; // Works!
+	assume Valid(S); // Fails due to new line 37 in Definitions.dfy.
+
+	// About 40 minutes.
+}
 
 method {:verify false}SeqCompFromSSA(S1': Statement, S2': Statement, XLs: set<Variable>, X: seq<Variable>, XLi: seq<Variable>, XLf: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns (S: Statement)
 	requires ValidVsSSA(vsSSA)
 	requires Valid(SeqComp(S1',S2'))
+	requires forall i :: i in XLi ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLf ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
@@ -1504,6 +1482,7 @@ method {:verify false}SeqCompFromSSA(S1': Statement, S2': Statement, XLs: set<Va
 
 	var XL3 := XLs * ((setOf(XLf) - ddef(S2')) + input(S2'));
 	var XL3Seq := setToSeq(XL3);
+	assert setOf(XL3Seq) <= XLs;
 
 	var S1 := MergeVars(S1', XLs, X, XLi, XL3Seq, Y, vsSSA);
 	var S2 := MergeVars(S2', XLs, X, XL3Seq, XLf, Y, vsSSA);
@@ -1514,6 +1493,9 @@ method {:verify false}SeqCompFromSSA(S1': Statement, S2': Statement, XLs: set<Va
 method {:verify false}IfFromSSA(B' : BooleanExpression, S1' : Statement, S2' : Statement, XLs: set<Variable>, X: seq<Variable>, XLi: seq<Variable>, XLf: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns (S: Statement)
 	requires ValidVsSSA(vsSSA)
 	requires Valid(IF(B',S1',S2'))
+	requires forall i :: i in XLi ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLf ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
@@ -1534,6 +1516,9 @@ method {:verify false}IfFromSSA(B' : BooleanExpression, S1' : Statement, S2' : S
 method {:verify false}DoFromSSA(B' : BooleanExpression, S' : Statement, XLs: set<Variable>, X: seq<Variable>, XLi: seq<Variable>, XLf: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns (S: Statement)
 	requires ValidVsSSA(vsSSA)
 	requires Valid(DO(B',S'))
+	requires forall i :: i in XLi ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLf ==> vsSSA.existsVariable2(i)
+	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(S)
@@ -1543,9 +1528,30 @@ method {:verify false}DoFromSSA(B' : BooleanExpression, S' : Statement, XLs: set
 	// " while B do merge-vars.(S1', XLs, X, (XL1i, XL2i), (XL1i, XL2i), Y) od "
 
 	var XL2i := setOf(XLi) * setOf(XLf);
+	assert XL2i <= setOf(XLi);
 	var XL1i := setOf(XLi) - XL2i;
-	var X1 := {}; // TODO
-	var X2 := {}; // TODO
+	assert XL1i <= setOf(XLi);
+
+	var X1 := {};
+	/* Is it: (compiles)
+		var XL1iSeq := setToSeq(XL1i);
+		assert forall i :: i in XL1iSeq ==> vsSSA.existsVariable2(i);
+		var X1Seq := vsSSA.instancesToVariables(XL1iSeq);
+		var X1 := setOf(X1Seq);
+	?
+	If so, I should change it in IfFromSSA also.
+	*/
+
+	var X2 := {};
+	/* Is it: (compiles)
+		var XL2iSeq := setToSeq(XL2i);
+		assert forall i :: i in XL2iSeq ==> vsSSA.existsVariable2(i);
+		var X2Seq := vsSSA.instancesToVariables(XL2iSeq);
+		var X2 := setOf(X2Seq);
+	?
+	If so, I should change it in IfFromSSA also.
+	*/
+
 	var B := SubstitueBooleanExpression(B', [X1,X2], [XL1i,XL2i]);
 
 	S := MergeVars(S', XLs, X, XLi, XLi, Y, vsSSA);

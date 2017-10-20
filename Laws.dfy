@@ -119,7 +119,7 @@ function Law14Left(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B
 
 function Law14Right(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: BooleanExpression, B4: BooleanExpression): Statement
 {
-	var B2andB4 := (state reads * requires B2.0.requires(state) && B4.0.requires(state) => B2.0(state) && B4.0(state), B2.1+B4.1);
+	var B2andB4 := (state requires B2.0.requires(state) && B4.0.requires(state) => B2.0(state) && B4.0(state), B2.1+B4.1);
 	SeqComp(Assert(B1),DO(B2andB4,SeqComp(S,Assert(B3))))
 }
 
@@ -133,7 +133,7 @@ lemma Law14(S: Statement, B1: BooleanExpression, B2: BooleanExpression, B3: Bool
 
 function Law15Left(B1: BooleanExpression, B2: BooleanExpression): Statement
 {
-	var B1andB2 := (state reads * requires B1.0.requires(state) && B2.0.requires(state) => B1.0(state) && B2.0(state), B1.1+B2.1);
+	var B1andB2 := (state requires B1.0.requires(state) && B2.0.requires(state) => B1.0(state) && B2.0(state), B1.1+B2.1);
 	Assert(B1andB2)
 }
 
@@ -170,7 +170,6 @@ function Law17aLeft(X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': 
 }
 
 function Law17aRight(X: seq<Variable>, E: seq<Expression>, Y: seq<Variable>, Y': seq<Variable>): Statement
-	reads *
 	requires |Y| == |Y'|
 	requires setOf(Y) !! setOf(Y')
 {
@@ -193,7 +192,6 @@ function Law17bLeft(S1: Statement, S2: Statement, B: BooleanExpression, Y: seq<V
 }
 
 function Law17bRight(S1: Statement, S2: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
-	reads *
 	requires |Y| == |Y'|
 	requires setOf(Y) !! setOf(Y')
 	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
@@ -217,7 +215,6 @@ function Law17cLeft(S1: Statement, B: BooleanExpression, Y: seq<Variable>, Y': s
 }
 
 function Law17cRight(S1: Statement, B: BooleanExpression, Y: seq<Variable>, Y': seq<Variable>): Statement
-	reads *
 	requires |Y| == |Y'|
 	requires setOf(Y) !! setOf(Y')
 	requires ValidAssignment(Y,seqVarToSeqExpr(Y'))
@@ -241,7 +238,6 @@ function Law18aLeft(X: seq<Variable>, Y: seq<Variable>, Z: seq<Variable>, E1: se
 }
 
 function Law18aRight(X: seq<Variable>, Y: seq<Variable>, Z: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>, E3: seq<Expression>): Statement
-	reads *
 	requires |X| == |E1| && |Y| == |E2| && |Z| == |E3|
 {
 	SeqComp(Assignment(X+Y,E1+E2),Assignment(Z,ESeqSubstituteVbyE(E3,Y,E2)))
@@ -262,7 +258,6 @@ function Law18bLeft(S1: Statement, S2: Statement, B: BooleanExpression, X: seq<V
 }
 
 function Law18bRight(S1: Statement, S2: Statement, B: BooleanExpression, X: seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E2: seq<Expression>): Statement
-	reads *
 	requires |X| == |E1| && |Y| == |E2|
 {
 	SeqComp(Assignment(X+Y,E1+E2),IF(BSubstituteVbyE(B,Y,E2),S1,S2))
@@ -283,7 +278,6 @@ function Law18cLeft(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': s
 }
 
 function Law18cRight(S1: Statement, B: BooleanExpression, X: seq<Variable>, X': seq<Variable>, Y: seq<Variable>, E1: seq<Expression>, E1': seq<Expression>, E2: seq<Expression>): Statement
-	reads *
 	requires |X| == |E1| && |Y| == |E2| && |X'| == |E1'|
 {
 	SeqComp(Assignment(X+Y,E1+E2),DO(BSubstituteVbyE(B,Y,E2),SeqComp(S1,Assignment(X',E1'))))
@@ -356,3 +350,8 @@ lemma Law26(B: BooleanExpression, S1: Statement, S2: Statement, Y: seq<Variable>
 	requires setOf(Y) !! setOf(V) + B.1 + input(S2)
 	ensures EquivalentStatments(Live(V,SeqComp(S1,DO(B,S2))),
 		Live(V,SeqComp(S1,DO(B,SeqComp(S2,Assignment(Y,E))))))
+
+lemma Law27(S1: Statement, S2: Statement, S3: Statement)
+	requires Valid(SeqComp(S1,SeqComp(S2,S3)))
+	requires Valid(SeqComp(SeqComp(S1,S2),S3))
+	ensures EquivalentStatments(SeqComp(S1,SeqComp(S2,S3)),SeqComp(SeqComp(S1,S2),S3))

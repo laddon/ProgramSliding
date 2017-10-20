@@ -7,17 +7,17 @@ datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip
 		LocalDeclaration(L: seq<Variable>, S0: Statement) | Live(L: seq<Variable>, S0: Statement) | Assert(B: BooleanExpression)
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
-type Expression = (State -> Value, set<Variable>)
-type BooleanExpression = (State -> bool, set<Variable>) 
+type Expression = (State --> Value, set<Variable>)
+type BooleanExpression = (State --> bool, set<Variable>) 
 type State = map<Variable, Value>
-type Predicate = (State -> bool, set<Variable>)
+type Predicate = (State --> bool, set<Variable>)
 
 
 //============================================================
 //					*** Validation ***
 //============================================================
 
-predicate Valid(stmt: Statement) reads *
+predicate Valid(stmt: Statement)
 {
 	match stmt {
 		case Skip => true
@@ -120,7 +120,7 @@ function method ExpressionListToString(expressions: seq<Expression>) : string
 function EqualityAssertion(X: seq<Variable>, E: seq<Expression>): (assertion: Statement)
 	requires ValidAssignment(X,E)
 {
-	var B := ((state: State) reads * 
+	var B := ((state: State)
 		requires (forall i :: 0 <= i < |X| ==> X[i] in state && E[i].0.requires(state)) => 
 		forall i :: 0 <= i < |X| ==> state[X[i]] == E[i].0(state), 
 		setOf(X)+varsInExps(E));
@@ -142,30 +142,27 @@ function ConstantPredicate(b: bool): Predicate
 //					*** Definitions ***
 //============================================================
 
-function power<T>(f: T->T, i: nat): T->T
+function power<T>(f: T-->T, i: nat): T-->T
 	decreases i
 {
 	if i == 0 then x => x
 	else x
 		requires power(f, i-1).requires(x)
 		requires f.requires(power(f, i-1)(x))
-		reads *
 		=> f(power(f, i-1)(x))
 }
 
-function existsK(i: nat, k: Predicate -> Predicate, state: State): bool
-	reads *
+function existsK(i: nat, k: Predicate --> Predicate, state: State): bool
 	requires forall i: nat :: power.requires(k, i)
 	requires forall i: nat, P: Predicate :: power(k, i).requires(P)
 	requires forall state1: State, P: Predicate  :: P.0.requires(state1)
 {
-	var P := ((_ => false),(set v | v in state));
+	var P: Predicate := ((_ => false),(set v | v in state));
 	exists i: nat :: power(k, i)(P).0(state)
 }
 
 // program,post-condition => wp
 function wp(stmt: Statement, P: Predicate): Predicate
-	reads Valid.reads(stmt)
 	requires Valid(stmt)
 	//requires stmt.LocalDeclaration? ==> vars(P) !! setOf(L)
 {
@@ -174,7 +171,6 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case Assignment(LHS,RHS) => sub(P, LHS, RHS)
 		case SeqComp(S1,S2) => wp(S1, wp(S2, P))
 		case IF(B0,Sthen,Selse) => var f:= (state: State)
-			reads *
 			requires B0.0.requires(state)
 			requires Valid(Sthen) && wp(Sthen, P).0.requires(state)
 			requires Valid(Selse) && wp(Selse, P).0.requires(state)
@@ -182,13 +178,11 @@ function wp(stmt: Statement, P: Predicate): Predicate
 			(B0.0(state) ==> wp(Sthen, P).0(state)) && (!B0.0(state) ==> wp(Selse, P).0(state));
 			(f,vars(P)-ddef(stmt)+input(stmt))
 		case DO(B,Sloop) => var f:= (state: State)
-			reads * //B.reads
 			requires forall state1: State, P: Predicate  :: P.0.requires(state1)
 			=>
-				(var k: Predicate -> Predicate := Q
+				(var k: Predicate --> Predicate := Q
 				=>
 				var g := ((state: State)
-						reads *
 						requires Valid(Sloop)
 						requires B.0.requires(state) /*&& B.0(state).Bool?*/
 						requires wp(Sloop, Q).0.requires(state)
@@ -202,7 +196,6 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case LocalDeclaration(L,S0) => wp(S0,P)
 		case Live(L,S0) => wp(S0,P)
 		case Assert(B) => var f:= (state: State)
-			reads *
 			requires B.0.requires(state)
 			requires P.0.requires(state)
 			=> /*B.0(state).Bool? && */
@@ -212,7 +205,6 @@ function wp(stmt: Statement, P: Predicate): Predicate
 }
 
 function wlp(stmt: Statement, P: Predicate): Predicate
-	reads Valid.reads(stmt)
 	requires Valid(stmt)
 	//requires stmt.LocalDeclaration? ==> vars(P) !! setOf(L)
 {
@@ -229,7 +221,6 @@ function sub(P: Predicate, X: seq<Variable>, E: seq<Expression>): Predicate
 	requires |X| == |E|
 {
 	var f:= (state: State)
-	reads *
 	requires StateUpdate.requires(state, X, E, state)
 	requires P.0.requires(StateUpdate(state, X, E, state))
 	=>
@@ -241,7 +232,6 @@ function sub(P: Predicate, X: seq<Variable>, E: seq<Expression>): Predicate
 function StateUpdate(oldState: State, X: seq<Variable>, E: seq<Expression>, newState: State): State
 	requires |X| == |E|
 	requires forall i: nat :: i < |E| ==> E[i].0.requires(oldState)
-	reads *
 {
 	if |X| == 0 then newState else
 	StateUpdate(oldState, X[1..], E[1..], newState[X[0] := E[0].0(oldState)])
@@ -340,8 +330,9 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 	ensures varsInExps(res) == setOf(seqvars)
 {
 	if seqvars == [] then []
-	else 
-		([((s:State)requires(seqvars[0] in s)=>s[seqvars[0]], {seqvars[0]})] + seqVarToSeqExpr(seqvars[1..]))
+	else var f := (s:State)requires(seqvars[0] in s)=>s[seqvars[0]];
+		var exp: Expression := (f, {seqvars[0]});
+		([exp] + seqVarToSeqExpr(seqvars[1..]))
 	
 }
 
@@ -355,7 +346,7 @@ else
 	
 } 
 
-predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
+predicate EquivalentPredicates(P1: Predicate, P2: Predicate)
 {
 	forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s)  
 }
@@ -363,7 +354,7 @@ predicate EquivalentPredicates(P1: Predicate, P2: Predicate) reads *
 lemma EquivalentPredicatesLemma(P1: Predicate, P2: Predicate)
 ensures EquivalentPredicates(P1,P2) <==> (forall s: State :: P1.0.requires(s) && P2.0.requires(s) ==> P1.0(s) == P2.0(s))
 
-predicate EquivalentBooleanExpressions(B1: BooleanExpression, B2: BooleanExpression) reads *
+predicate EquivalentBooleanExpressions(B1: BooleanExpression, B2: BooleanExpression)
 {
 	B1.1 == B2.1 &&
 	(forall s :: B1.0.requires(s) <==> B2.0.requires(s)) &&
@@ -371,7 +362,6 @@ predicate EquivalentBooleanExpressions(B1: BooleanExpression, B2: BooleanExpress
 }
 
 predicate EquivalentStatments(S1: Statement, S2: Statement)
-	reads *
 	requires Valid(S1)
 	requires Valid(S2)
 {
@@ -384,7 +374,6 @@ requires Valid(S2)
 ensures EquivalentStatments(S1, S2) <==> (forall P: Predicate :: EquivalentPredicates(wp(S1,P), wp(S2,P)))
 
 predicate Refinement(S1: Statement, S2: Statement)
-	reads *
 	requires Valid(S1)
 	requires Valid(S2)
 {
@@ -397,7 +386,6 @@ requires Valid(S2)
 ensures Refinement(S1, S2) <==> (forall P: Predicate,s: State :: (wp(S1,P).0(s) ==> wp(S2,P).0(s)))
 
 predicate SliceRefinement(S1: Statement, S2: Statement,V: set<Variable>)
-	reads *
 	requires Valid(S1)
 	requires Valid(S2)
 {
@@ -410,7 +398,6 @@ requires Valid(S2)
 ensures SliceRefinement(S1, S2, V) <==> (forall P: Predicate,s: State :: (vars(P) <= V) ==> ((wp(S1,P).0(s) ==> wp(S2,P).0(s))))
 
 predicate CoSliceRefinement(S1: Statement, S2: Statement,V: set<Variable>)
-	reads *
 	requires Valid(S1)
 	requires Valid(S2)
 {
@@ -434,27 +421,27 @@ function VarsOfPredicateSet(W: set<Predicate>): set<Variable>
 
 function PointwisePredicate(s: State, v: Variable) : Predicate
 {
-	(((s1: State) reads*  => v in s1 && v in s && s[v] == s1[v] ,{v}))
+	(((s1: State) => v in s1 && v in s && s[v] == s1[v] ,{v}))
 }
 
 function AND(P1: Predicate,P2: Predicate): Predicate
 {
-	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) && P2.0(s),P1.1 + P2.1)
+	((s: State) requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) && P2.0(s),P1.1 + P2.1)
 }
 
 function OR(P1: Predicate,P2: Predicate): Predicate
 {
-	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) || P2.0(s),P1.1 + P2.1)
+	((s: State) requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) || P2.0(s),P1.1 + P2.1)
 }
 
 function IMPLIES(P1: Predicate,P2: Predicate): Predicate  
 {
-	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) ==> P2.0(s), P1.1 + P2.1) 
+	((s: State) requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) ==> P2.0(s), P1.1 + P2.1) 
 }
 
 function NOT(P1: Predicate): Predicate  
 {
-	((s: State) reads * requires P1.0.requires(s) => !P1.0(s), P1.1)
+	((s: State) requires P1.0.requires(s) => !P1.0(s), P1.1)
 }
 
 //============================================================
@@ -469,17 +456,17 @@ lemma IdentityOfAND(S: Statement,P1: Predicate)
 requires Valid(S)
 ensures EquivalentPredicates(wp(S,AND(P1,ConstantPredicate(true))),wp(S,P1))
 
-lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
+lemma Leibniz<T>(f: Predicate-->T, P1: Predicate, P2: Predicate)
 requires EquivalentPredicates(P1,P2)
 requires f.requires(P1) && f.requires(P2)
 ensures f(P1) == f(P2)
 
-lemma Leibniz2<S,T>(f: (S,Predicate)->T, P1: Predicate, P2: Predicate, s: S)
+lemma Leibniz2<S,T>(f: (S,Predicate)-->T, P1: Predicate, P2: Predicate, s: S)
 requires EquivalentPredicates(P1,P2)
 requires f.requires(s,P1) && f.requires(s,P2)
 ensures f(s,P1) == f(s,P2)
 
-lemma Leibniz3<T>(f: (Statement,Predicate)->T, S: Statement,SV: Statement ,p: Predicate)
+lemma Leibniz3<T>(f: (Statement,Predicate)-->T, S: Statement,SV: Statement ,p: Predicate)
 requires f.requires(S,p) && f.requires(SV,p)
 ensures f(S,p) == f(SV,p)
 

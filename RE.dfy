@@ -9,9 +9,9 @@ include "Definitions.dfy"
 
 lemma RE1(S: Statement, W: set<Predicate>)
 requires Valid(S)
-ensures EquivalentPredicates( wp(S,((s1: State) reads * requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P.0.requires(s1) && P.0(s1), VarsOfPredicateSet(W))), (((s1: State) reads * requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P in W && wp.requires(S,P) && (wp(S,P)).0(s1), VarsOfPredicateSet(W))))
+ensures EquivalentPredicates( wp(S,((s1: State) requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P.0.requires(s1) && P.0(s1), VarsOfPredicateSet(W))), (((s1: State) requires forall Q :: Q in W ==> Q.0.requires(s1) => exists P: Predicate :: P in W && wp.requires(S,P) && (wp(S,P)).0(s1), VarsOfPredicateSet(W))))
 
-//EquivalentPredicates(wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),(((s1: State) reads * requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
+//EquivalentPredicates(wp(S,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),(((s1: State) requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
 
 //requires isUniversallyDisjunctive(wp(S,P))
 //ensures isUniversallyDisjunctive(wp(SeqComp(L,S),P))

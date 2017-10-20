@@ -16,7 +16,6 @@ include "Definitions.dfy"
  * 
  */
 function method substitute(S: Statement, X: seq<Variable>, X': seq<Variable>) : (S': Statement)
-reads *
 requires Valid(S)
 requires |X| == |X'|
 requires setOf(X) !! setOf(X')
@@ -87,13 +86,12 @@ function method {:verify true} BSubstitute(
 	B0: BooleanExpression,
 	X: seq<Variable>,
 	X': seq<Variable>) : (res: BooleanExpression)
-reads *
 requires |X| == |X'|
 requires setOf(X) !! setOf(X')
 ensures |B0.1-setOf(X)+setOf(X')|==|res.1|
 ensures setOf(X) !! res.1
 {
-	((state reads * requires(forall v :: v in B0.1-setOf(X)+setOf(X') ==> v in state)
+	((state requires(forall v :: v in B0.1-setOf(X)+setOf(X') ==> v in state)
 		requires forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m) 
 		=> 
 			var m := map v | v in B0.1 :: 
@@ -109,22 +107,20 @@ function method {:verify true} ESubstitute(
 	E: Expression,
 	X: seq<Variable>,
 	X': seq<Variable>) : (res:Expression)
-reads *
 requires |X| == |X'|
 requires setOf(X) !! setOf(X')
 ensures |E.1-setOf(X)+setOf(X')|==|res.1|
 ensures setOf(X) !! res.1
 {
-	((state reads * requires(forall v :: v in E.1-setOf(X)+setOf(X') ==> v in state)
+	var f := (state requires(forall v :: v in E.1-setOf(X)+setOf(X') ==> v in state)
 		requires forall m :: (forall v :: v in E.1 ==> v in m) ==> E.0.requires(m) 
 		=> 
 			var m := map v | v in E.1 :: 
 			(if v !in X 	
 				then state[v] 
 				else state[FindParallelV(v, X, X')]);
-
-		E.0(m)),
-	 E.1-setOf(X)+setOf(X'))
+		E.0(m));
+	(f,E.1-setOf(X)+setOf(X'))
 }
 
 function method {:verify true} FindParallelV(v: Variable,
@@ -142,7 +138,6 @@ function method {:verify true} ESeqSubstitute(
 	Es : seq<Expression>,
 	X: seq<Variable>,
 	X': seq<Variable>) : (res : seq<Expression>)
-reads *
 requires |X| == |X'|
 requires setOf(X) !! setOf(X')
 ensures |res| == |Es|
@@ -162,12 +157,11 @@ function method {:verify true} BSubstituteVbyE(
 	B0: BooleanExpression,
 	X: seq<Variable>,
 	E: seq<Expression>) : (res: BooleanExpression)
-reads *
 requires |X| == |E|
 {
-	((state reads * requires(forall v :: v in B0.1-setOf(X)+varsInExps(E) ==> v in state)
+	((state requires(forall v :: v in B0.1-setOf(X)+varsInExps(E) ==> v in state)
 		requires forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m)
-		requires forall exp :: exp in E ==> exp.0.requires(state)
+		requires forall i :: 0 <= i < |E| ==> E[i].0.requires(state)
 		=> 
 			var m := map v | v in B0.1 :: 
 			(if v !in X 	
@@ -189,27 +183,25 @@ function method {:verify true} ESubstituteVbyE(
 	E0: Expression,
 	X: seq<Variable>,
 	E: seq<Expression>) : (res:Expression)
-reads *
 requires |X| == |E|
 {
-	((state reads * requires(forall v :: v in E0.1-setOf(X)+varsInExps(E) ==> v in state)
+	var f := (state requires(forall v :: v in E0.1-setOf(X)+varsInExps(E) ==> v in state)
 		requires forall m :: (forall v :: v in E0.1 ==> v in m) ==> E0.0.requires(m)
-		requires forall exp :: exp in E ==> exp.0.requires(state)
+		requires forall i :: 0 <= i < |E| ==> E[i].0.requires(state)
 		=> 
 			var m := map v | v in E0.1 :: 
 			(if v !in X 	
 				then state[v] 
 				else E[FindV(v, X)].0(state));
 
-		E0.0(m)),
-	 E0.1-setOf(X)+varsInExps(E))
+		E0.0(m));
+	(f,E0.1-setOf(X)+varsInExps(E))
 }
 
 function method {:verify true} ESeqSubstituteVbyE(
 	Es: seq<Expression>,
 	X: seq<Variable>,
 	E: seq<Expression>) : (res : seq<Expression>)
-reads *
 requires |X| == |E|
 {
 	if Es == [] then []

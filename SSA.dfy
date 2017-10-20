@@ -10,9 +10,7 @@ class VariablesSSA {
 	var n: int;
 
 	constructor () 
-		modifies this
-		requires ValidVsSSA(this)
-		ensures ValidVsSSA(this)
+//		ensures ValidVsSSA(this)
 	{
 		n := 1;
 	}

@@ -7,7 +7,6 @@ include "RE.dfy"
 //============================================================
 
 predicate Theorem_4_1Help1 (S: Statement,T: Statement)
-reads *
 requires Valid(S)
 requires Valid(T)
 {
@@ -21,7 +20,6 @@ ensures Theorem_4_1Help1(S,T) <==> (forall P: Predicate, s: State :: wp(S,P).0(s
 
 
 predicate Theorem_4_1Help2 (S: Statement,T: Statement)
-reads *
 requires Valid(S)
 requires Valid(T)
 {
@@ -34,7 +32,6 @@ requires Valid(T)
 ensures Theorem_4_1Help2(S,T) <==> (forall P: Predicate, s:State :: (wp(S,P).0(s) ==> wp(T,P).0(s)) && (EquivalentPredicates(wp(S,ConstantPredicate(true)),wp(T,ConstantPredicate(true)))))
 
 predicate Theorem_5_1Help(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -47,7 +44,6 @@ requires Valid(SV)
 ensures Theorem_5_1Help(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in V && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))
 
 predicate Corollary_5_2Help(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -60,7 +56,6 @@ requires Valid(SV)
 ensures Corollary_5_2Help(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))))
 
 predicate Corollary_5_4Help1(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -79,7 +74,7 @@ requires Valid(SV)
 ensures Corollary_5_2Help(S,SV,{}) <==>  Corollary_5_4Help1(S,SV,V)
 {
 	forall s: State, v: Variable, v1: Variable | v1 in (V - (def(S)+def(SV))) {
-	//var P1:=  (((s1: State) reads *  =>  v in (V - (def(S)+def(SV))) && v in s && v in s1 && s[v] == s1[v]),{v});
+	//var P1:=  (((s1: State)  =>  v in (V - (def(S)+def(SV))) && v in s && v in s1 && s[v] == s1[v]),{v});
 	var P1:= PointwisePredicate(s,v1);
 	calc {
 	Corollary_5_2Help(S,SV,{});
@@ -128,7 +123,6 @@ ensures Corollary_5_4Help1(S,SV,V) <==> Corollary_5_4Help2(S,SV,V)
 
 // The following predicates and Lemmas are for proving Corollary_5_4Help1ToHelp2LemmaHelpToHelp2
 predicate Corollary_5_4Help1ToHelp2LemmaHelp(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -136,7 +130,6 @@ requires Valid(SV)
 }
 
 predicate SideA(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -144,7 +137,6 @@ requires Valid(SV)
 }
 
 predicate SideB1(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -152,7 +144,6 @@ requires Valid(SV)
 }
 
 predicate SideB2(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -212,7 +203,6 @@ ensures Corollary_5_4Help1ToHelp2LemmaHelp(S,SV,V) <==> Corollary_5_4Help2(S,SV,
 }
 
 predicate Corollary_5_4Help2(S: Statement, SV: Statement, V: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 {
@@ -247,7 +237,6 @@ ensures Corollary_5_4Help2(S,SV,V) <==> Corollary_5_4Help3(S,SV,V,CoV) && Coroll
 }
 
 predicate Corollary_5_4Help3(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
@@ -256,7 +245,6 @@ requires CoV == (def(S) + def(SV)) - V
 }
 
 predicate Corollary_5_4Help4(S: Statement, SV: Statement, V: set<Variable>,CoV: set<Variable>)
-reads *
 requires Valid(S)
 requires Valid(SV)
 requires CoV == (def(S) + def(SV)) - V
@@ -315,18 +303,19 @@ ensures SliceRefinement(S,SV,V) <==> Corollary_5_4Help3(S,SV,V,CoV)
 	}
 }
 
-function P2_x(P:Predicate,S:Statement, V: set<Variable>) : State->Predicate
-reads *
+function P2_x(P:Predicate,S:Statement, V: set<Variable>) : State-->Predicate
 requires Valid(S)
 {
-	(p: State) => (((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v])),P.1)
+	(p: State) => var Q: Predicate :=
+		var f := ((s0:State)=>
+			(forall v: Variable :: v in V ==> v in s0.Keys && v in p.Keys && s0[v] == p[v]));
+		(f,P.1); Q
 }
 
 function P3_x(s:State,P:Predicate,S:Statement, V: set<Variable>) : Predicate
-reads *
 requires Valid(S)
 {
-	(((s1: State) reads * requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) &&Valid(S) && P2_x(P,S,V).requires(p) && wp.requires(S,P2_x(P,S,V)(p)) && (wp(S,(P2_x(P,S,V))(p)).0(s1))),P.1)
+	(((s1: State) requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) &&Valid(S) && P2_x(P,S,V).requires(p) && wp.requires(S,P2_x(P,S,V)(p)) && (wp(S,(P2_x(P,S,V))(p)).0(s1))),P.1)
 }
 
 lemma P3P4(s1:State,P:Predicate,S:Statement,SV:Statement, V: set<Variable>)
@@ -340,9 +329,9 @@ ensures (forall s: State, v: Variable :: v in V && v in s ==> (P3_x(s1,P,S,V).0(
 		 {
 			P3_x(s1,P,S,V).0(s);
 			==>{}
-			(((s1: State) reads * requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) && Valid(S) && P2_x(P,S,V).requires(p) && wp.requires(S,P2_x(P,S,V)(p)) && (wp(S,(P2_x(P,S,V))(p)).0(s1))),P.1).0(s);
+			(((s1: State) requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) && Valid(S) && P2_x(P,S,V).requires(p) && wp.requires(S,P2_x(P,S,V)(p)) && (wp(S,(P2_x(P,S,V))(p)).0(s1))),P.1).0(s);
 			==>{assert (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s));}
-			(((s1: State) reads * requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) && Valid(SV) &&P2_x(P,SV,V).requires(p) && wp.requires(SV,P2_x(P,SV,V)(p)) && (wp(SV,(P2_x(P,SV,V))(p)).0(s1))),P.1).0(s);
+			(((s1: State) requires P.0.requires(s1)=> exists p: State ::  P.0.requires(p) && P.0(p) && Valid(SV) &&P2_x(P,SV,V).requires(p) && wp.requires(SV,P2_x(P,SV,V)(p)) && (wp(SV,(P2_x(P,SV,V))(p)).0(s1))),P.1).0(s);
 			== {}
 			P3_x(s1,P,SV,V).0(s);
 		 }
@@ -351,7 +340,6 @@ ensures (forall s: State, v: Variable :: v in V && v in s ==> (P3_x(s1,P,S,V).0(
 
 // All the following lemma's and predicates till Corollary_5_6 are used in order to prove in Dafny that Corollary_5_6 is correct 
 predicate Corollary_5_6Help1Single (S: Statement, T: Statement, V: set<Variable>)
-reads * 
 requires Valid(S)
 requires Valid(T)
 {
@@ -359,7 +347,6 @@ requires Valid(T)
 }
 
 predicate Corollary_5_6Help1 (S: Statement, T: Statement, V: set<Variable>)
-reads * 
 requires Valid(S)
 requires Valid(T)
 {
@@ -393,7 +380,6 @@ ensures Corollary_5_6Help1Single(S,T,V) <==> Corollary_5_6Help1(S,T,V)
 }
 
 predicate Corollary_5_6Help2Single (S: Statement, T: Statement, V: set<Variable>)
-reads * 
 requires Valid(S)
 requires Valid(T)
 {
@@ -401,7 +387,6 @@ requires Valid(T)
 }
 
 predicate Corollary_5_6Help2 (S: Statement, T: Statement, V: set<Variable>)
-reads * 
 requires Valid(S)
 requires Valid(T)
 {
@@ -438,7 +423,7 @@ ensures Corollary_5_6Help2Single(S,T,V) == Corollary_5_6Help2(S,T,V)
 //					*** THEOREMS ***
 //============================================================
 lemma Equation_5_1(P: Predicate,V: set<Variable>)
-ensures EquivalentPredicates(P,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1))
+ensures EquivalentPredicates(P,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1))
 
 lemma Equation_5_2(S: Statement, Sco: Statement, V: set<Variable>)
 requires Valid(S)
@@ -610,39 +595,39 @@ ensures SliceRefinement(S,SV,V) <== Theorem_5_1Help(S,SV,V)
 		*/
 	forall P: Predicate ,s: State |(vars(P) <= V) ensures wp(S,P).0(s) ==> wp(SV,P).0(s);
 	{			
-		var P1 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1);
+		var P1 := (((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1);
 		var P2 := (p: State) => (((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v])),P.1);
-		var P3 := (((s1: State) reads * requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
-		var P4 := (((s2: State) reads * requires P.0.requires(s2)=> exists p1: State :: P.0.requires(p1) && P.0(p1) && wp.requires(SV,P2(p1)) && (wp(SV,P2(p1)).0(s2))),P.1);
+		var P3 := (((s1: State) requires P.0.requires(s1)=> exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))),P.1);
+		var P4 := (((s2: State) requires P.0.requires(s2)=> exists p1: State :: P.0.requires(p1) && P.0(p1) && wp.requires(SV,P2(p1)) && (wp(SV,P2(p1)).0(s2))),P.1);
 		calc{
 		wp(S,P).0(s);
 		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,S);}
 		wp(S,P1).0(s);
 		==> {}
-		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
+		wp(S,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
 		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]) == (P2(p).0(s1));
-			var P4 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
-			var P5 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
+			var P4 := (((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
+			var P5 := (((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
 			assert EquivalentPredicates(P4,P5);
 			Leibniz2(wp, P4,P5, S);}
-		wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
-		==> { assume EquivalentPredicates(wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3) /*by { RE1(S,{P/*2(p)*/});}*/;} 
-		//(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))), P.1).0(s);
+		wp(S,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
+		==> { assume EquivalentPredicates(wp(S,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3) /*by { RE1(S,{P/*2(p)*/});}*/;} 
+		//(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && (wp(S,P2(p)).0(s1))), P.1).0(s);
 		//=={}                                                                                              
 		P3_x(s,P,S,V).0(s);
 		==> {assume P3_x(s,P,S,V).0(s) ==> P3_x(s,P,SV,V).0(s);}
-		/*==> {/*assume EquivalentPredicates(wp(S,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3);*/}
-		((s1: State) reads * requires P.0.requires(s1)=>exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s1),P.1).0(s);
+		/*==> {/*assume EquivalentPredicates(wp(S,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P3);*/}
+		((s1: State) requires P.0.requires(s1)=>exists p: State :: P.0.requires(p) && P.0(p) && wp.requires(S,P2(p)) && wp(S,((s0:State)=>(forall v: Variable :: v in V ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s1),P.1).0(s);
 		//==> {Equation_5_2(S,SV,V);P3P4(s,P,S,SV,V);/*assert exists p: State::(((wp(S,P2(p)).0(s))) ==> (wp(SV,P2(p)).0(s))) by {Equation_5_2(S,SV,V);}/*leibniz3 - forall ==>*/*/}*/
 		P3_x(s,P,SV,V).0(s);
-		==> {assume EquivalentPredicates(wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P4) /*by { RE1(S,{P/*2(p)*/});}*/;} 
-		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
+		==> {assume EquivalentPredicates(wp(SV,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)),P4) /*by { RE1(S,{P/*2(p)*/});}*/;} 
+		wp(SV,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1)).0(s);
 		==> {assert forall s1: State, p: State :: (forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]) == (P2(p).0(s1));
-			var P6 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
-			var P7 := (((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
+			var P6 := (((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1); 
+			var P7 := (((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && P2(p).0(s1)), P.1);
 			assert EquivalentPredicates(P6,P7);
 			Leibniz2(wp, P6,P7, SV);}
-		wp(SV,(((s1: State) reads * requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
+		wp(SV,(((s1: State) requires P.0.requires(s1) => exists p: State :: P.0.requires(p) && P.0(p) && forall v: Variable :: v in V ==> v in s1 && v in p && p[v] == s1[v]), P.1)).0(s);
 		==> {}
 		wp(SV,P1).0(s);
 		==> {Equation_5_1(P,V);assert EquivalentPredicates(P,P1);Leibniz2(wp,P,P1,SV);}
@@ -713,12 +698,12 @@ ensures CoSliceRefinement(S,SV,V) <== SliceRefinement(S,SV,CoV)
 
 		//var NDP := (s0: State) => (forall v:Variable:: v in ND ==> PointwisePredicate(s0,v).0(s0));
 
-		var P1 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]) && (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),P.1);
-		var P2 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && wp(S,(p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0)),P.1);
-		var P3 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(S,ConstantPredicate(true))).0(s0)),P.1);
-		var P4 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(S,ConstantPredicate(true))).0(s0)),P.1);
-		var P5 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(SV,ConstantPredicate(true))).0(s0)),P.1);
-		var P6 := ((s0:State) reads * =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && wp(SV,(p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0)),P.1);
+		var P1 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]) && (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),P.1);
+		var P2 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && wp(S,(p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0)),P.1);
+		var P3 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(S,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(S,ConstantPredicate(true))).0(s0)),P.1);
+		var P4 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(S,ConstantPredicate(true))).0(s0)),P.1);
+		var P5 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && AND((p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1),wp(SV,ConstantPredicate(true))).0(s0)),P.1);
+		var P6 := ((s0:State) =>(exists p: State ::  P.0.requires(p) && P.0(p) && wp.requires(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)) && wp(SV,(p => (forall v: Variable :: v in CoV1 ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0) && wp(SV,(p => (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v]),P.1)).0(s0)),P.1);
 		
 		if (!((vars(P) !! V) && (vars(P) - CoV != {})))
 		{}
@@ -729,13 +714,13 @@ ensures CoSliceRefinement(S,SV,V) <== SliceRefinement(S,SV,CoV)
 				wp(S,P1).0(s);
 				==>{assume EquivalentPredicates(wp(S,P1),P2);}
 				P2.0(s);
-				=={var PP := ((s0:State) reads * =>(exists p: State :: (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),ND); assert vars(wp(S,PP)) <= vars(PP) - ddef(S) + input(S) by {RE2(S,PP);}assert vars(PP) !! def(S); RE3(S,PP);assert EquivalentPredicates(AND(PP,wp(S,ConstantPredicate(true))),wp(S,PP));assert EquivalentPredicates(P2,P3);}
+				=={var PP := ((s0:State) =>(exists p: State :: (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),ND); assert vars(wp(S,PP)) <= vars(PP) - ddef(S) + input(S) by {RE2(S,PP);}assert vars(PP) !! def(S); RE3(S,PP);assert EquivalentPredicates(AND(PP,wp(S,ConstantPredicate(true))),wp(S,PP));assert EquivalentPredicates(P2,P3);}
 				P3.0(s);
 				=={assert CoV1 <= CoV;}
 				P4.0(s);
 				=={assert CoV1 <= CoV;}
 				P5.0(s);
-				== {var PP := wp(SV,((s0:State) reads * =>(exists p: State :: (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),P.1)); assert vars(wp(SV,P2)) <= vars(P2) - ddef(SV) + input(SV) by {RE2(SV,P2);}assert ND !! def(SV); RE3(S,PP);assert EquivalentPredicates(P2,P3);}
+				== {var PP := wp(SV,((s0:State) =>(exists p: State :: (forall v: Variable :: v in ND ==> v in s0 && v in p && s0[v] == p[v])),P.1)); assert vars(wp(SV,P2)) <= vars(P2) - ddef(SV) + input(SV) by {RE2(SV,P2);}assert ND !! def(SV); RE3(S,PP);assert EquivalentPredicates(P2,P3);}
 				P6.0(s);
 				== {assume EquivalentPredicates(wp(SV,P1),P6);}
 				wp(SV,P1).0(s);

@@ -36,6 +36,8 @@ ensures forall c :: c in res ==> '\u0030' <= c <= '\u0039'
 
 /* res := X*Y */
 function method {:verify true} seqConjunction<T(==)>(X: seq<T>, Y: seq<T>) : (res: seq<T>)
+requires uniqueness(X)
+requires uniqueness(Y)
 ensures forall i :: i in res ==> i in X && i in Y
 ensures forall i :: i !in res ==> i !in X || i !in Y
 {
@@ -44,8 +46,12 @@ ensures forall i :: i !in res ==> i !in X || i !in Y
 	else seqConjunction(X[1..], Y)
 }
 
+
 /* res := X-Y */
 function method {:verify true} seqSubtraction<T(==)>(X: seq<T>, Y: seq<T>) : (res: seq<T>)
+requires uniqueness(X)
+requires uniqueness(Y)
+decreases X
 ensures forall i :: i in res ==> i in X && i !in Y
 ensures forall i :: i !in res ==> i !in X || i in Y
 {
@@ -53,4 +59,9 @@ ensures forall i :: i !in res ==> i !in X || i in Y
 	else if Y == [] then X
 	else if X[0] in Y then seqSubtraction(X[1..], Y)
 	else [X[0]]+seqSubtraction(X[1..], Y)
+}
+
+predicate uniqueness<T(==)>(X: seq<T>)
+{
+	(forall i,j :: i in X && j in X && i != j) ==> true
 }

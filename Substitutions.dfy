@@ -91,9 +91,8 @@ requires setOf(X) !! setOf(X')
 ensures |B0.1-setOf(X)+setOf(X')|==|res.1|
 ensures setOf(X) !! res.1
 {
-	((state requires(forall v :: v in B0.1-setOf(X)+setOf(X') ==> v in state)
-		requires forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m) 
-		=> 
+	((state
+		=> (forall v :: v in B0.1-setOf(X)+setOf(X') ==> v in state) && //(forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m)) &&
 			var m := map v | v in B0.1 :: 
 			(if v !in X 	
 				then state[v] 
@@ -112,13 +111,11 @@ requires setOf(X) !! setOf(X')
 ensures |E.1-setOf(X)+setOf(X')|==|res.1|
 ensures setOf(X) !! res.1
 {
-	var f := (state requires(forall v :: v in E.1-setOf(X)+setOf(X') ==> v in state)
-		requires forall m :: (forall v :: v in E.1 ==> v in m) ==> E.0.requires(m) 
-		=> 
+	var f := (state => 
 			var m := map v | v in E.1 :: 
 			(if v !in X 	
-				then state[v] 
-				else state[FindParallelV(v, X, X')]);
+				then (if v in state then state[v] else Int(0))//Error
+				else var v' := FindParallelV(v, X, X'); if v' in state then state[v'] else Int(0));// Error
 		E.0(m));
 	(f,E.1-setOf(X)+setOf(X'))
 }
@@ -159,13 +156,10 @@ function method {:verify true} BSubstituteVbyE(
 	E: seq<Expression>) : (res: BooleanExpression)
 requires |X| == |E|
 {
-	((state requires(forall v :: v in B0.1-setOf(X)+varsInExps(E) ==> v in state)
-		requires forall m :: (forall v :: v in B0.1 ==> v in m) ==> B0.0.requires(m)
-		requires forall i :: 0 <= i < |E| ==> E[i].0.requires(state)
-		=> 
+	((state => 
 			var m := map v | v in B0.1 :: 
 			(if v !in X 	
-				then state[v] 
+				then if v in state then state[v] else Int(0)//Error
 				else E[FindV(v, X)].0(state));
 
 		B0.0(m)),
@@ -185,13 +179,10 @@ function method {:verify true} ESubstituteVbyE(
 	E: seq<Expression>) : (res:Expression)
 requires |X| == |E|
 {
-	var f := (state requires(forall v :: v in E0.1-setOf(X)+varsInExps(E) ==> v in state)
-		requires forall m :: (forall v :: v in E0.1 ==> v in m) ==> E0.0.requires(m)
-		requires forall i :: 0 <= i < |E| ==> E[i].0.requires(state)
-		=> 
+	var f := (state => 
 			var m := map v | v in E0.1 :: 
 			(if v !in X 	
-				then state[v] 
+				then if v in state then state[v] else Int(0) //Error
 				else E[FindV(v, X)].0(state));
 
 		E0.0(m));

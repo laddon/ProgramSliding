@@ -303,7 +303,7 @@ ensures SliceRefinement(S,SV,V) <==> Corollary_5_4Help3(S,SV,V,CoV)
 	}
 }
 
-function P2_x(P:Predicate,S:Statement, V: set<Variable>) : State-->Predicate
+function P2_x(P:Predicate,S:Statement, V: set<Variable>) : State->Predicate
 requires Valid(S)
 {
 	(p: State) => var Q: Predicate :=

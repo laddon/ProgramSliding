@@ -7,10 +7,10 @@ datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip
 		LocalDeclaration(L: seq<Variable>, S0: Statement) | Live(L: seq<Variable>, S0: Statement) | Assert(B: BooleanExpression)
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
-type Expression = (State --> Value, set<Variable>)
-type BooleanExpression = (State --> bool, set<Variable>) 
+type Expression = (State -> Value, set<Variable>)
+type BooleanExpression = (State -> bool, set<Variable>) 
 type State = map<Variable, Value>
-type Predicate = (State --> bool, set<Variable>)
+type Predicate = (State -> bool, set<Variable>)
 
 
 //============================================================
@@ -120,9 +120,8 @@ function method ExpressionListToString(expressions: seq<Expression>) : string
 function EqualityAssertion(X: seq<Variable>, E: seq<Expression>): (assertion: Statement)
 	requires ValidAssignment(X,E)
 {
-	var B := ((state: State)
-		requires (forall i :: 0 <= i < |X| ==> X[i] in state && E[i].0.requires(state)) => 
-		forall i :: 0 <= i < |X| ==> state[X[i]] == E[i].0(state), 
+	var B := ((state: State) => 
+		forall i :: 0 <= i < |X| ==> X[i] in state && E[i].0.requires(state) && state[X[i]] == E[i].0(state), 
 		setOf(X)+varsInExps(E));
 	Assert(B)
 }
@@ -171,23 +170,18 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case Assignment(LHS,RHS) => sub(P, LHS, RHS)
 		case SeqComp(S1,S2) => wp(S1, wp(S2, P))
 		case IF(B0,Sthen,Selse) => var f:= (state: State)
-			requires B0.0.requires(state)
-			requires Valid(Sthen) && wp(Sthen, P).0.requires(state)
-			requires Valid(Selse) && wp(Selse, P).0.requires(state)
 			=> /*B.0(state).Bool? && */
+//			assert B0.0.requires(state) && Valid(Sthen) && wp(Sthen, P).0.requires(state) && Valid(Selse) && wp(Selse, P).0.requires(state);
 			(B0.0(state) ==> wp(Sthen, P).0(state)) && (!B0.0(state) ==> wp(Selse, P).0(state));
 			(f,vars(P)-ddef(stmt)+input(stmt))
 		case DO(B,Sloop) => var f:= (state: State)
 			requires forall state1: State, P: Predicate  :: P.0.requires(state1)
 			=>
-				(var k: Predicate --> Predicate := Q
+				(var k: Predicate -> Predicate := Q
 				=>
 				var g := ((state: State)
-						requires Valid(Sloop)
-						requires B.0.requires(state) /*&& B.0(state).Bool?*/
-						requires wp(Sloop, Q).0.requires(state)
-						requires P.0.requires(state)
 					=>
+//					assert Valid(Sloop) && B.0.requires(state) /*&& B.0(state).Bool?*/ && wp(Sloop, Q).0.requires(state) && P.0.requires(state);
 					(B.0(state) || P.0(state)) && (!B.0(state) || wp(Sloop, Q).0(state)));
 					(g,vars(Q)-ddef(stmt)+input(stmt));
 				existsK(0, k, state));
@@ -196,9 +190,8 @@ function wp(stmt: Statement, P: Predicate): Predicate
 		case LocalDeclaration(L,S0) => wp(S0,P)
 		case Live(L,S0) => wp(S0,P)
 		case Assert(B) => var f:= (state: State)
-			requires B.0.requires(state)
-			requires P.0.requires(state)
 			=> /*B.0(state).Bool? && */
+			assert B.0.requires(state) && P.0.requires(state);
 			(B.0(state) && P.0(state));
 			(f,vars(P)+B.1)
 	}
@@ -221,9 +214,7 @@ function sub(P: Predicate, X: seq<Variable>, E: seq<Expression>): Predicate
 	requires |X| == |E|
 {
 	var f:= (state: State)
-	requires StateUpdate.requires(state, X, E, state)
-	requires P.0.requires(StateUpdate(state, X, E, state))
-	=>
+	=> StateUpdate.requires(state, X, E, state) && P.0.requires(StateUpdate(state, X, E, state)) &&
 		var newState := StateUpdate(state, X, E, state); 
 		P.0(newState);
 	(f,P.1 - setOf(X) + varsInExps(E))
@@ -330,7 +321,7 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 	ensures varsInExps(res) == setOf(seqvars)
 {
 	if seqvars == [] then []
-	else var f := (s:State)requires(seqvars[0] in s)=>s[seqvars[0]];
+	else var f := (s:State) => if seqvars[0] in s.Keys then s[seqvars[0]] else Int(0);//Error;
 		var exp: Expression := (f, {seqvars[0]});
 		([exp] + seqVarToSeqExpr(seqvars[1..]))
 	
@@ -456,17 +447,17 @@ lemma IdentityOfAND(S: Statement,P1: Predicate)
 requires Valid(S)
 ensures EquivalentPredicates(wp(S,AND(P1,ConstantPredicate(true))),wp(S,P1))
 
-lemma Leibniz<T>(f: Predicate-->T, P1: Predicate, P2: Predicate)
+lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
 requires EquivalentPredicates(P1,P2)
 requires f.requires(P1) && f.requires(P2)
 ensures f(P1) == f(P2)
 
-lemma Leibniz2<S,T>(f: (S,Predicate)-->T, P1: Predicate, P2: Predicate, s: S)
+lemma Leibniz2<S,T>(f: (S,Predicate)->T, P1: Predicate, P2: Predicate, s: S)
 requires EquivalentPredicates(P1,P2)
 requires f.requires(s,P1) && f.requires(s,P2)
 ensures f(s,P1) == f(s,P2)
 
-lemma Leibniz3<T>(f: (Statement,Predicate)-->T, S: Statement,SV: Statement ,p: Predicate)
+lemma Leibniz3<T>(f: (Statement,Predicate)->T, S: Statement,SV: Statement ,p: Predicate)
 requires f.requires(S,p) && f.requires(SV,p)
 ensures f(S,p) == f(SV,p)
 

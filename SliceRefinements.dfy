@@ -69,7 +69,7 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))
+	TerminationRefinement(S,SV) && SetPointwiseRefinement(S,SV,V+def(S)+def(SV))
 }
 
 lemma Corollary_5_4Help1Lemma(S: Statement, SV: Statement, V: set<Variable>)
@@ -107,7 +107,7 @@ ensures Corollary_5_2Help(S,SV,{}) ==  Corollary_5_4Help1(S,SV,V)
 		}
 	T && nonDefV && allDefs;
 	== { assert nonDefV && allDefs <==> SetPointwiseRefinement(S,SV,V+def(S)+def(SV));
-			assume T && SetPointwiseRefinement(S,SV,V+def(S)+def(SV)) <==> Corollary_5_4Help1(S,SV,V); }
+			assert T && SetPointwiseRefinement(S,SV,V+def(S)+def(SV)) <==> Corollary_5_4Help1(S,SV,V); }
 	Corollary_5_4Help1(S,SV,V);
 	}
 }

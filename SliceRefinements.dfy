@@ -51,18 +51,13 @@ reads *
 requires Valid(S)
 requires Valid(SV)
 {
-	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))))
+	TerminationRefinement(S,SV) && SetPointwiseRefinement(S,SV,def(S)+def(SV)-V)
 }
 
 lemma Corollary_5_2HelpLemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 ensures Corollary_5_2Help(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))))
-
-lemma Corollary_5_2HelpLemma'(S: Statement, SV: Statement, V: set<Variable>)
-requires Valid(S)
-requires Valid(SV)
-ensures Corollary_5_2Help(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> PointwiseRefinement(S,SV,s,v))))
 
 predicate Corollary_5_4Help1(S: Statement, SV: Statement, V: set<Variable>)
 reads *
@@ -89,7 +84,7 @@ ensures Corollary_5_2Help(S,SV,{}) ==  Corollary_5_4Help1(S,SV,V)
 	
 	calc {
 	Corollary_5_2Help(S,SV,{});
-	== {Corollary_5_2HelpLemma'(S,SV,{});}
+	==
 	T && SetPointwiseRefinement(S,SV,def(S)+def(SV)-{});
 	==
 	T && allDefs;

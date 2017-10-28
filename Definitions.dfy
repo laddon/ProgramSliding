@@ -396,6 +396,14 @@ requires Valid(S1)
 requires Valid(S2)
 ensures Refinement(S1, S2) <==> (forall P: Predicate,s: State :: (wp(S1,P).0(s) ==> wp(S2,P).0(s)))
 
+predicate TerminationRefinement(S1: Statement, S2: Statement)
+reads *
+requires Valid(S1)
+requires Valid(S2)
+{
+	forall s: State :: ((wp(S1,ConstantPredicate(true)).0(s) ==> wp(S2,ConstantPredicate(true)).0(s)))
+}
+
 predicate SliceRefinement(S1: Statement, S2: Statement,V: set<Variable>)
 	reads *
 	requires Valid(S1)
@@ -435,6 +443,20 @@ function VarsOfPredicateSet(W: set<Predicate>): set<Variable>
 function PointwisePredicate(s: State, v: Variable) : Predicate
 {
 	(((s1: State) reads*  => v in s1 && v in s && s[v] == s1[v] ,{v}))
+}
+
+predicate PointwiseRefinement(S: Statement, T: Statement, s1: State, v: Variable)
+	reads *
+{
+	Valid(S) && Valid(T) && v in s1 ==>
+		(forall s2 :: (forall x :: x in input(S) || x in input(T) ==> x in s1) && 
+		wp(S,PointwisePredicate(s1,v)).0(s2) ==> wp(T,PointwisePredicate(s1,v)).0(s2))
+}
+
+predicate SetPointwiseRefinement(S: Statement, T: Statement, V: set<Variable>)
+	reads *
+{
+	Valid(S) && Valid(T) && (forall s: State ,v: Variable :: v in V && v in s ==> PointwiseRefinement(S,T,s,v))
 }
 
 function AND(P1: Predicate,P2: Predicate): Predicate

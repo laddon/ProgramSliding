@@ -59,6 +59,11 @@ requires Valid(S)
 requires Valid(SV)
 ensures Corollary_5_2Help(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))))
 
+lemma Corollary_5_2HelpLemma'(S: Statement, SV: Statement, V: set<Variable>)
+requires Valid(S)
+requires Valid(SV)
+ensures Corollary_5_2Help(S,SV,V) <==> (((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-V) && v in s ==> PointwiseRefinement(S,SV,s,v))))
+
 predicate Corollary_5_4Help1(S: Statement, SV: Statement, V: set<Variable>)
 reads *
 requires Valid(S)
@@ -72,38 +77,38 @@ requires Valid(S)
 requires Valid(SV)
 ensures Corollary_5_4Help1(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))
 
-// TODO: complete 1 error : 2 assemption to use 5.5 -> why is it valid to all ranges?
-lemma {:verify false} Corollary_5_2HelpToCorollary_5_4Help1Lemma(S: Statement, SV: Statement, V: set<Variable>)
+lemma {:verify true} Corollary_5_2HelpToCorollary_5_4Help1Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
-ensures Corollary_5_2Help(S,SV,{}) <==>  Corollary_5_4Help1(S,SV,V)
+// one can freely add here (to the set of all defined variables) the remaining (hence non-defined) elements of V
+ensures Corollary_5_2Help(S,SV,{}) ==  Corollary_5_4Help1(S,SV,V)
 {
-	forall s: State, v: Variable, v1: Variable | v1 in (V - (def(S)+def(SV))) {
-	//var P1:=  (((s1: State) reads *  =>  v in (V - (def(S)+def(SV))) && v in s && v in s1 && s[v] == s1[v]),{v});
-	var P1:= PointwisePredicate(s,v1);
+	var T := TerminationRefinement(S,SV);
+	var nonDefV := SetPointwiseRefinement(S,SV,V-(def(S)+def(SV)));
+	var allDefs := SetPointwiseRefinement(S,SV,def(S)+def(SV));
+	
 	calc {
 	Corollary_5_2Help(S,SV,{});
-	== {Corollary_5_2HelpLemma(S,SV,{});}
-	(((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State, v: Variable :: v in (def(S)+def(SV)-{}) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))));
-	== {}
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(SV)) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s))));
-	== { assert vars(P1) !! (def(S) + def(SV));  Corollary_5_5_A(S, SV,P1,V);}
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && 
-	(forall s: State ,v: Variable ::  v in (V - (def(S)+def(SV))) && v in s ==> (wp(S,P1).0(s) ==> wp(SV,P1).0(s))) && 												
-	(forall s: State ,v: Variable :: v in (def(S)+def(SV))  && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s))));
-//	== {}
-
-	== {assert EquivalentPredicates(P1,PointwisePredicate(s,v1));Leibniz2(wp,wp(S,P1), wp(S,PointwisePredicate(s,v1)), S);assert  (wp(S,P1).0(s) == wp(S,PointwisePredicate(s,v1)).0(s)) by{assert EquivalentPredicates(wp(S,P1),wp(S,PointwisePredicate(s,v1)));} assert  ((wp(S,P1).0(s) ==> wp(SV,P1).0(s)) ==  (wp(S,PointwisePredicate(s,v1)).0(s) ==> wp(SV,P1).0(s))); }
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && 
-	(forall s: State ,v: Variable ::  v in (V - (def(S)+def(SV))) && v in s ==> (wp(S,PointwisePredicate(s,v1)).0(s) ==> wp(SV,P1).0(s))) &&						
-	(forall s: State ,v: Variable :: v in (def(S)+def(SV))  && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s))));
-	== {assert EquivalentPredicates(P1,PointwisePredicate(s,v1));Leibniz2(wp,wp(SV,P1), wp(SV,PointwisePredicate(s,v1)), SV);}
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ::  v in (V - (def(S)+def(SV))) && v in s ==> (wp(S,PointwisePredicate(s,v1)).0(s) ==> wp(SV,PointwisePredicate(s,v1)).0(s))) &&	(forall s: State ,v: Variable :: v in (def(S)+def(SV))  && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s))));
-	== {}
-	((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V + def(S)+def(SV)) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s))));
-	== {Corollary_5_4Help1Lemma(S,SV,V);}
+	== {Corollary_5_2HelpLemma'(S,SV,{});}
+	T && SetPointwiseRefinement(S,SV,def(S)+def(SV)-{});
+	==
+	T && allDefs;
+	== {	assert T == (T && nonDefV) by { 
+				forall P | vars(P) !! def(S)+def(SV) ensures T ==> (forall s:State :: (wp(S,P)).0(s) ==> (wp(SV,P)).0(s)) { calc {
+					T;
+				==
+					TerminationRefinement(S,SV);
+				==> { Corollary_5_5(S,SV,P); }
+					(forall s:State :: (wp(S,P)).0(s) ==> (wp(SV,P)).0(s));
+				} }
+				assert T ==> SetPointwiseRefinement(S,SV,V-(def(S)+def(SV)));
+				assert T ==> nonDefV;
+			}
+		}
+	T && nonDefV && allDefs;
+	== { assert nonDefV && allDefs <==> SetPointwiseRefinement(S,SV,V+def(S)+def(SV));
+			assume T && SetPointwiseRefinement(S,SV,V+def(S)+def(SV)) <==> Corollary_5_4Help1(S,SV,V); }
 	Corollary_5_4Help1(S,SV,V);
-	}
 	}
 }
 
@@ -670,7 +675,6 @@ ensures (CoSliceRefinement(S,SV,V)) <==> Corollary_5_2Help(S,SV,V)
 	}
 }
 
-
 lemma Corollary_5_3 (S: Statement, SV: Statement, V: set<Variable>, CoV: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
@@ -760,12 +764,12 @@ ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
 		(forall P: Predicate, s: State :: (vars(P) !! {}) ==> (wp(S,P).0(s) ==> wp(T,P).0(s)));
 		== {CoSliceRefinementLemma(S,T,{});}
 		CoSliceRefinement(S,T,{});
-		== {Corollary_5_2 (S, T, {});} 
-		Corollary_5_2Help(S,T,{});
+		== {Corollary_5_2(S, T, {});} 
+		Corollary_5_2Help(S,T,{});															// all defined variables (...minus the empty set)
 		== {Corollary_5_2HelpToCorollary_5_4Help1Lemma(S,T,V);}
-		Corollary_5_4Help1(S,T,V);
+		Corollary_5_4Help1(S,T,V);															// union of V and the defined variables
 		== {Corollary_5_4Help1ToHelp2Lemma(S,T,V);}
-		Corollary_5_4Help2(S,T,V);
+		Corollary_5_4Help2(S,T,V);															// V separately from the non-V defined variables
 		== {Corollary_5_4Help2ToHelp3ANDHelp4Lemma(S,T,V,(def(S)+def(T))-V);}
 		Corollary_5_4Help3(S,T,V,(def(S)+def(T))-V) && Corollary_5_4Help4(S,T,V,(def(S)+def(T))-V);
 		== {Corollary_5_4Help3ToSliceRefinementLemma(S,T,V,(def(S)+def(T))-V);Corollary_5_4Help4ToCoSliceRefinementLemma(S,T,V,(def(S)+def(T))-V);}
@@ -773,19 +777,11 @@ ensures Refinement(S,T) <==> SliceRefinement(S,T,V) && CoSliceRefinement(S,T,V)
 		}
 }
 
-
-lemma Corollary_5_5_A(S: Statement, T: Statement, P: Predicate, V: set<Variable>)
+lemma Corollary_5_5(S: Statement, T: Statement, P:Predicate)
 requires Valid(S)
 requires Valid(T)
 requires vars(P) !! (def(S) + def(T))
-ensures ((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (def(S)+def(T)) && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(T,PointwisePredicate(s,v)).0(s)))) ==
-		((forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(T,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable ::  v in (V - (def(S)+def(T))) && v in s ==> (wp(S,P).0(s) ==> wp(T,P).0(s))) && 	(forall s: State ,v: Variable :: v in (def(S)+def(T))  && v in s ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(T,PointwisePredicate(s,v)).0(s))))
-
-lemma Corollary_5_5 (S: Statement, T: Statement, P:Predicate)
-requires Valid(S)
-requires Valid(T)
-requires vars(P) !! (def(S) + def(T))
-ensures (forall s:State :: (wp(S,ConstantPredicate(true))).0(s) ==> (wp(T,ConstantPredicate(true))).0(s)) ==> (forall s:State :: (wp(S,P)).0(s) ==> (wp(T,P)).0(s))
+ensures TerminationRefinement(S,T) ==> (forall s:State :: (wp(S,P)).0(s) ==> (wp(T,P)).0(s))
 {
 	if ((forall s:State :: (wp(S,ConstantPredicate(true))).0(s) ==> (wp(T,ConstantPredicate(true))).0(s)))
 	{

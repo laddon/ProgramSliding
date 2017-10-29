@@ -289,12 +289,12 @@ function method input(S: Statement) : set<Variable>
 	}
 }
 
-function trigger<T>(x: T): bool
+function method trigger<T>(x: T): bool
 {
 	true
 }
 
-function glob(S: Statement) : set<Variable>
+function method glob(S: Statement) : set<Variable>
 {
 	set x | trigger(x) && x in def(S) + input(S)
 }
@@ -528,3 +528,34 @@ lemma Leibniz4(S1: Statement, S2: Statement, S2': Statement)
 requires Valid(S1) && Valid(S2) && Valid(S2')
 requires EquivalentStatments(S2,S2')
 ensures EquivalentStatments(SeqComp(S1,S2),SeqComp(S1,S2'))
+
+predicate mutuallyDisjoint<T>(seqs: seq<seq<T>>)
+{
+	forall i,j :: 0 <= i < j < |seqs| ==> setOf(seqs[i]) !! setOf(seqs[j])
+}
+
+lemma LemmaDisjointUnions<T>(seqs: seq<seq<T>>)
+	requires mutuallyDisjoint(seqs)
+	ensures forall i1,j1,i2,j2 :: 0 <= i1 < j1 < |seqs| && 0 <= i2 < j2 < |seqs| && i1 != i2 && i1 != j2 && j1 != i2 && j1 != j2 ==> 
+		setOf(seqs[i1]+seqs[j1]) !! setOf(seqs[i2]+seqs[j2])
+
+predicate mutuallyDisjoint3<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>)
+{
+	mutuallyDisjoint([s1,s2,s3])// |setOf(s1+s2+s3)| == |s1|+|s2|+|s3|
+}
+
+predicate mutuallyDisjoint4<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>)
+{
+	mutuallyDisjoint([s1,s2,s3,s4])// |setOf(s1+s2+s3+s4)| == |s1|+|s2|+|s3|+|s4|
+}
+
+predicate mutuallyDisjoint5<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>)
+{
+	mutuallyDisjoint([s1,s2,s3,s4,s5])// |setOf(s1+s2+s3+s4+s5)| == |s1|+|s2|+|s3|+|s4|+|s5|
+}
+
+predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>, s6: seq<T>)
+{
+	mutuallyDisjoint([s1,s2,s3,s4,s5,s6])// |setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
+}
+

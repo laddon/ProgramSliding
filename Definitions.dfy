@@ -347,6 +347,7 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 
 function method {:verify false} fSetToSeq(s : set<Variable>) : (res: seq<Variable>)
 ensures |res| == |s|
+ensures forall v :: v in s ==> v in res
 {
 if s == {} then []
 else
@@ -559,3 +560,11 @@ predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s
 	mutuallyDisjoint([s1,s2,s3,s4,s5,s6])// |setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
 }
 
+function corresponding<T(==)>(vr: seq<T>, fvr: seq<T>, vrsubset: set<T>) : (res: seq<T>)
+requires |vr|==|fvr|
+requires vrsubset <= setOf(vr)
+{
+	if vr == [] then [] else
+	if vr[0] in vrsubset then [fvr[0]] + corresponding(vr[1..], fvr[1..], vrsubset-{vr[0]})
+	else corresponding(vr[1..], fvr[1..], vrsubset)
+}

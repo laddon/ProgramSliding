@@ -72,7 +72,7 @@ requires Valid(S)
 requires Valid(SV)
 ensures Corollary_5_4Help1(S,SV,V) <==> (forall s: State :: ((wp(S,ConstantPredicate(true)).0(s) ==> wp(SV,ConstantPredicate(true)).0(s)))) && (forall s: State ,v: Variable :: v in (V+def(S)+def(SV)) && v in s  ==> (wp(S,PointwisePredicate(s,v)).0(s) ==> wp(SV,PointwisePredicate(s,v)).0(s)))
 
-lemma {:verify true} Corollary_5_2HelpToCorollary_5_4Help1Lemma(S: Statement, SV: Statement, V: set<Variable>)
+lemma Corollary_5_2HelpToCorollary_5_4Help1Lemma(S: Statement, SV: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(SV)
 // one can freely add here (to the set of all defined variables) the remaining (hence non-defined) elements of V

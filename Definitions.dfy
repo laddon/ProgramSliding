@@ -7,8 +7,8 @@ datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip
 		LocalDeclaration(L: seq<Variable>, S0: Statement) | Live(L: seq<Variable>, S0: Statement) | Assert(B: BooleanExpression)
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
-type Expression = (State -> Value, set<Variable>)
-type BooleanExpression = (State -> bool, set<Variable>) 
+type Expression = (State -> Value, set<Variable>,string)
+type BooleanExpression = (State -> bool, set<Variable>,string) 
 type State = map<Variable, Value>
 type Predicate = (State -> bool, set<Variable>)
 
@@ -51,17 +51,12 @@ predicate Core(stmt: Statement)
 	}
 }
 
-function ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>): bool 
+function method ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>): bool 
 {
 	if (|LHS| != |RHS|) then false else true 
 }
 
-/*
-predicate method ValidAssignment(str: string)
-{
-	true // check ":=" with same-length lists to its left and right, the former of distinct variable names and the right of expressions
-}
-*/
+
 
 //============================================================
 //					*** PRINTING ***
@@ -82,7 +77,9 @@ function method ToString(S: Statement) : string
 }
 
 function method BooleanExpressionToString(B: BooleanExpression) : string 
-{ "boolean expression... " } // TODO: implement
+{ 
+	B.2
+ } // TODO: implement
 
 function method PredicateToString(P: Predicate) : string 
 { "predicate " } // TODO: implement
@@ -123,7 +120,7 @@ function EqualityAssertion(X: seq<Variable>, E: seq<Expression>): (assertion: St
 	var B := ((state: State) reads * 
 		requires (forall i :: 0 <= i < |X| ==> X[i] in state && E[i].0.requires(state)) => 
 		forall i :: 0 <= i < |X| ==> state[X[i]] == E[i].0(state), 
-		setOf(X)+varsInExps(E));
+		setOf(X)+varsInExps(E),""/*need to Fill in (x[0] == e[0].2) + (...)*/);
 	Assert(B)
 }
 
@@ -341,7 +338,7 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 {
 	if seqvars == [] then []
 	else 
-		([((s:State)requires(seqvars[0] in s)=>s[seqvars[0]], {seqvars[0]})] + seqVarToSeqExpr(seqvars[1..]))
+		([((s:State)requires(seqvars[0] in s)=>s[seqvars[0]], {seqvars[0]},seqvars[0])] + seqVarToSeqExpr(seqvars[1..]))
 	
 }
 

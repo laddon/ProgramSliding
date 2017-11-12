@@ -6,7 +6,7 @@ include "SliceRefinements.dfy"
 
 // Check if both statement are swap equivalent
 method ComputeStatments(s1: string, s2: string) returns (b: bool)  
-//ensures b ==> fib(n)
+//ensures b ==> EquivalentStatments(SeqComp(StringToStatement(s1),StringToStatement(s2)),SeqComp(StringToStatement(s2),StringToStatement(s1)))
 {
 	var S1,S2;
 	var valid1,valid2;
@@ -14,41 +14,104 @@ method ComputeStatments(s1: string, s2: string) returns (b: bool)
 	S1 := StringToStatement(s1);
 	S2 := StringToStatement(s2);
 	
-	valid1 := ValidStatement(S1);
-	valid2 := ValidStatement(S2);
+	valid1 := isValid(S1);
+	valid2 := isValid(S2);
 
+	print "test";
+	b:=true;
+
+	if (!valid1) 
+	{
+		print "Invalid Statment 1\n";
+		b:= false;
+	}
+	if (!valid2) 
+	{
+		print "Invalid Statment 2\n";
+		b:= false;
+	}
+	if(!(def(S1) !! def(S2)))
+	{
+		print "def(S1) is not stranger to def(S2)\n";
+		b:= false;
+	}
+	if (!(input(S1) !! def(S2)))
+	{
+		print "input(S1) is not stranger to def(S2)\n";
+		b:= false;
+	}
+	if(!(def(S1) !! input(S2)))
+	{	
+		print "def(S1) is not stranger to input(S2)\n";
+		b:= false;
+	}
 	
-	if (valid1 && valid2) 
-	{
-		if ( (def(S1) !! def(S2)) && (input(S1) !! def(S2)) && (def(S1) !! input(S2)))
-		{
-			return true;
-		}
-		else 
-		{
-			return false;
-		}
-	}
-	else
-	{
-		return false;
-	}
-	/*
-	var S: Statement;
-	if (Valid(S) == true)
-	{}
-
-	if (true)
-	{
-
-	return true;
-	} 
-	else 
-	{
-	return false;
-	}*/
+	
 }
 
+method isValid(S: Statement) returns (b: bool)
+ensures b == ValidStatement(S)
+{
+	b:= ValidStatement(S);
+}
+
+function method ValidStatement(S: Statement) : bool 
+{
+	match S {
+		case Skip => true
+		case Assignment(LHS,RHS) => ValidAssignment(LHS,RHS) 
+		case SeqComp(S1,S2) => ValidStatement(S1) && ValidStatement(S2)
+		case IF(B0,Sthen,Selse) => 
+			/*(forall state: State :: B0.0.requires(state) /*&& B.0(state).Bool?*/) && */
+			ValidStatement(Sthen) && ValidStatement(Selse)
+		case DO(B,Sloop) =>
+			/*(forall state: State :: B.0.requires(state) /*&& B.0(state).Bool?*/) &&*/ ValidStatement(Sloop)
+		case LocalDeclaration(L,S0) => ValidStatement(S0)
+		case Live(L, S0) => ValidStatement(S0)
+		case Assert(B) => true
+	} /*&&
+	// TODO: FixMe
+	//(forall state1: State, P: Predicate  :: (forall v :: v in state1 ==> v in P.1) ==> P.0.requires(state1))
+	forall state1: State, P: Predicate  ::  P.0.requires(state1)*/
+}
+
+// Convert string to Statement
+method StringToStatement(s1: string) returns (s2: Statement)
+//ensures valid ==> Valid(s2)
+{
+
+	if (|s1| == 0 || |s1| == 1 )
+	{
+		return Skip;
+	}
+
+	var commandType := (s1[0],s1[1]);
+
+	/*
+	if (commandType == "SK")
+	{
+		retrun Skip;
+	}
+
+	if (commandType == "AS")
+	{
+		retrun StringToAssignment(s1[3]);
+	}
+	*/
+
+	/*	
+		TODO:
+
+		match s1 {
+		case "" => Skip
+		case ";" => SeqComp(s2, StringToStatement(s1[1]))
+		case "IF" => StringToIf(s1[1])
+		case "WHILE" => StringToDo(s1[1])
+		case "ASM" => StringToAssignment(s1[1])
+
+		}
+	*/
+}
 
 // Convert string to DO Statement
 method StringToDo(s1: string) returns (s2: Statement)
@@ -103,7 +166,15 @@ method StringToAssignment(s1: string) returns (s2: Statement)
 
 method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 {
-	// TODO
+	if (|sl| > 0)  
+	{  
+		
+		(forall i :: 0 <= i < |sl| - 4 ==> (LHS := LHS[..] + "x")); //if(sl[i] == "V" && sl[i+1] == "A") {var str =""; forall j :: i+2 <= j <|sl| ==> if (!(sl[j] == "V" && sl[j+1] == "E")) { str = str + sl[j];}else {j := |sl|; LHS := LHS + str;}} });
+	}
+	else 
+	{
+		LHS := {""};
+	}
 }
 
 method StringToRHS(sr: string) returns (RHS: seq<Expression>)
@@ -111,36 +182,83 @@ method StringToRHS(sr: string) returns (RHS: seq<Expression>)
 	// TODO
 }
 
+//============================================================
+//		      *** OPERANDS  ***
+//============================================================
 
-method isValid(S: Statement) returns (b: bool)
-ensures b == ValidStatement(S)
+method GreaterThanToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
 {
-	return ValidStatement(S);
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};i1 > i2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
 }
 
-function method ValidStatement(S: Statement) : bool 
+method GreaterThanOrEqualToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
 {
-	// TODO: FIX THIS - Need to change valid from predicate into method/function
-	//if (Valid(S)) then true else false
-	true
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};i1 >= i2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
 }
 
-// Convert string to Statement
-method StringToStatement(s1: string) returns (s2: Statement)
-//ensures valid ==> Valid(s2)
+method LesserThanToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
 {
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};i1 < i2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
+}
 
+method LesserThanOrEqualToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};i1 <= i2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
+}
 
-	/*	
-		TODO:
+method AddToExpr(ELeft: Expression,ERight: Expression,Text: string) returns (e: Expression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};Int(i1 + i2)));
+	 var vars := ELeft.1 + ERight.1;
+	e := (func,vars ,Text);
+}
 
-		match s1 {
-		case "" => Skip
-		case ";" => SeqComp(s2, StringToStatement(s1[1]))
-		case "IF" => StringToIf(s1[1])
-		case "WHILE" => StringToDo(s1[1])
-		case "ASM" => StringToAssignment(s1[1])
+method SubToExpr(ELeft: Expression,ERight: Expression,Text: string) returns (e: Expression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};Int(i1 - i2)));
+	 var vars := ELeft.1 + ERight.1;
+	e := (func,vars ,Text);
+}
 
-		}
-	*/
+method MulToExpr(ELeft: Expression,ERight: Expression,Text: string) returns (e: Expression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};Int(i1 * i2)));
+	 var vars := ELeft.1 + ERight.1;
+	e := (func,vars ,Text);
+}
+
+method DevToExpr(ELeft: Expression,ERight: Expression,Text: string) returns (e: Expression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var i1 := match ELeft.0(state) { case Bool(b) => 0 case Int(i) => i};var i2 := match ERight.0(state) { case Bool(b) => 0 case Int(i) => i};if(i2 == 0) then Int(0) else Int(i1 / i2)));
+	 var vars := ELeft.1 + ERight.1;
+	e := (func,vars ,Text);
+}
+
+method OrToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var b1 := match ELeft.0(state) { case Bool(b) => b case Int(i) => false};var b2 := match ERight.0(state) { case Bool(b) => b case Int(i) => false};b1 || b2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
+}
+
+method AndToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (var b1 := match ELeft.0(state) { case Bool(b) => b case Int(i) => false};var b2 := match ERight.0(state) { case Bool(b) => b case Int(i) => false};b1 && b2));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
+}
+
+method NotToBoolExpr(ELeft: Expression,Text: string) returns (b: BooleanExpression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) => (var b1 := match ELeft.0(state) { case Bool(b) => b case Int(i) => false};!b1));
+	 var vars := ELeft.1;
+	b := (func,vars ,Text);
 }

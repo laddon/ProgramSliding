@@ -69,10 +69,7 @@ function method ValidStatement(S: Statement) : bool
 		case LocalDeclaration(L,S0) => ValidStatement(S0)
 		case Live(L, S0) => ValidStatement(S0)
 		case Assert(B) => true
-	} /*&&
-	// TODO: FixMe
-	//(forall state1: State, P: Predicate  :: (forall v :: v in state1 ==> v in P.1) ==> P.0.requires(state1))
-	forall state1: State, P: Predicate  ::  P.0.requires(state1)*/
+	}
 }
 
 // Convert string to Statement
@@ -166,7 +163,7 @@ method StringToAssignment(s1: string) returns (s2: Statement)
 
 method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 {
-	if (|sl| > 0)  
+	/*if (|sl| > 0)  
 	{  
 		
 		(forall i :: 0 <= i < |sl| - 4 ==> (LHS := LHS[..] + "x")); //if(sl[i] == "V" && sl[i+1] == "A") {var str =""; forall j :: i+2 <= j <|sl| ==> if (!(sl[j] == "V" && sl[j+1] == "E")) { str = str + sl[j];}else {j := |sl|; LHS := LHS + str;}} });
@@ -174,7 +171,7 @@ method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 	else 
 	{
 		LHS := {""};
-	}
+	}*/
 }
 
 method StringToRHS(sr: string) returns (RHS: seq<Expression>)
@@ -185,6 +182,18 @@ method StringToRHS(sr: string) returns (RHS: seq<Expression>)
 //============================================================
 //		      *** OPERANDS  ***
 //============================================================
+
+method EqualToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
+{
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => ( var b := match ELeft.0(state) { case Bool(bl) => (match ERight.0(state) { 	case Bool(br) => if(bl == br) then true else false
+																																												case Int(ir) => false
+																																											})
+																																  case Int(il) => (match ERight.0(state) {	case Bool(br) => false 
+																																											case Int(ir) => if(il == ir) then true else false		
+																																											})}; b));
+	 var vars := ELeft.1 + ERight.1;
+	b := (func,vars ,Text);
+}
 
 method GreaterThanToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
 {

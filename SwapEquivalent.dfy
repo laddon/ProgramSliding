@@ -163,15 +163,38 @@ method StringToAssignment(s1: string) returns (s2: Statement)
 
 method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 {
-	/*if (|sl| > 0)  
+	if (|sl| > 0)  
 	{  
-		
-		(forall i :: 0 <= i < |sl| - 4 ==> (LHS := LHS[..] + "x")); //if(sl[i] == "V" && sl[i+1] == "A") {var str =""; forall j :: i+2 <= j <|sl| ==> if (!(sl[j] == "V" && sl[j+1] == "E")) { str = str + sl[j];}else {j := |sl|; LHS := LHS + str;}} });
+		var i := 0;
+		while i < |sl| - 4
+		{
+			if(sl[i] == 'V' && sl[i+1] == 'A') 
+			{
+				var str :="";
+				var j := i+2;
+				while j < |sl| - 1
+				{
+					if (!(sl[j] == 'V' && sl[j+1] == 'E')) 
+					{ 
+						var varChar := [sl[j]]; // convert to string == seq<char>
+						str := str + varChar;
+					}
+					else
+					{
+						j := |sl|;
+					}
+					j := j + 1;
+				}
+				var varName := [str]; // convert to seq<Variable> == seq<string>
+				LHS := LHS + varName;
+			}
+			i := i + 1;
+		}
 	}
 	else 
 	{
-		LHS := {""};
-	}*/
+		LHS := [];
+	}
 }
 
 method StringToRHS(sr: string) returns (RHS: seq<Expression>)
@@ -180,17 +203,17 @@ method StringToRHS(sr: string) returns (RHS: seq<Expression>)
 }
 
 //============================================================
-//		      *** OPERANDS  ***
+//		      *** OPERATOR ***
 //============================================================
 
 method EqualToBoolExpr(ELeft: Expression,ERight: Expression,Text: string) returns (b: BooleanExpression)
 {
-	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => ( var b := match ELeft.0(state) { case Bool(bl) => (match ERight.0(state) { 	case Bool(br) => if(bl == br) then true else false
+	 var func := (state reads * requires ELeft.0.requires(state) && ERight.0.requires(state) => (  match ELeft.0(state) { case Bool(bl) => (match ERight.0(state) { 	case Bool(br) => bl == br
 																																												case Int(ir) => false
 																																											})
 																																  case Int(il) => (match ERight.0(state) {	case Bool(br) => false 
-																																											case Int(ir) => if(il == ir) then true else false		
-																																											})}; b));
+																																											case Int(ir) => il == ir		
+																																											})}));
 	 var vars := ELeft.1 + ERight.1;
 	b := (func,vars ,Text);
 }

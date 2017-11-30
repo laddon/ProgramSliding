@@ -98,9 +98,9 @@ function method {:verify true} FinalUseSubstitution(
 reads *
 requires Valid(S)
 requires |X| == |X'|
-requires forall v :: v in X ==> v !in X'
-requires forall v :: v in X' ==> v !in glob(S)
-ensures forall v :: v in X ==> v !in glob(S')
+requires mutuallyDisjoint([X,X'])
+requires mutuallyDisjoint([X', fSetToSeq(glob(S))])
+ensures mutuallyDisjoint([X, fSetToSeq(glob(S'))])
 ensures Valid(S')
 {
 	match S {

@@ -1,83 +1,67 @@
 include "Definitions.dfy"
 include "Util.dfy"
+include "CFG.dfy"
 
 // PDG Definitions:
 datatype Tag = Control | Data(vars: set<Variable>)
-type PDGNode = Label
+datatype PDGNode = Node(l:Label) | Entry
 type PDGEdge = (PDGNode, PDGNode, Tag)
 
-method ComputePDG(S: Statement) returns (N: set<Slide>, E: set<PDGEdge>)
+method ComputePDG(S: Statement, cfg: CFG) returns (N: set<PDGNode>, E: set<PDGEdge>)
 {
-	
-}
-
-function FindSubstatement(S: Statement, l: Label) : Statement
-{
-	
-}
-
-function UsedVars(S: Statement, l: Label) : set<Variable>
-{
-	// call FindSubstatement
-}
-
-function DefinedVars(S: Statement, l: Label) : set<Variable>
-{
-	// call FindSubstatement
-}
-
-/*function FlowInsensitiveSlice(S: Statement, V: set<Variable>): Statement
-	// FIXME: generalize
-	requires S == Assignment(["i","sum", "prod"],["i+1","sum+i","prod*i"])
-{
-	if V == {"sum"} then Assignment(["sum"],["sum+i"])
-	else Assignment(["i","prod"],["i+1","prod*i"])
-}*/
-
-function method GetAssignmentsOfV(LHS : seq<Variable>, RHS : seq<Expression>, V: set<Variable>) : Statement
-
-{
-	if LHS == [] then Skip
-	else if LHS[0] in V then 
-	var tempRes := GetAssignmentsOfV(LHS[1..], RHS[1..], V);
-	match tempRes {
-		case Assignment(LHS1,RHS1) => Assignment([LHS[0]]+LHS1, [RHS[0]]+RHS1)
+	var cfgToPdgNodeMap : map<CFGNode, PDGNode> := map[];
+	N := {};
+	var cfgNodes := cfg.0;
+	while (|cfgNodes| > 0) {
+		var cfgNode : CFGNode;
+		cfgNode	:| cfgNode in cfgNodes;
+		cfgNodes := cfgNodes - {cfgNode};
+		match cfgNode {
+			case Entry =>
+				var pdgNode := PDGNode.Entry;
+				N := N + {pdgNode};
+				cfgToPdgNodeMap := cfgToPdgNodeMap[cfgNode := pdgNode];
+			case Node(l) => 
+				var pdgNode := PDGNode.Node(l);
+				N := N + {pdgNode};
+				cfgToPdgNodeMap := cfgToPdgNodeMap[cfgNode := pdgNode];
+			case Exit =>
+		}
 	}
-	else GetAssignmentsOfV(LHS[1..], RHS[1..], V)
-
-	/*if LHS == [] then Skip
-	else if LHS[0] in V then SeqComp(Assignment([LHS[0]],[RHS[0]]), GetAssignmentsOfV(LHS[1..], RHS[1..], V))
-	else GetAssignmentsOfV(LHS[1..], RHS[1..], V)*/
-}
-
-function method ComputeSlides(S: Statement, V: set<Variable>) : Statement
-
-{
-	if V * def(S) == {} then Skip
-	else
-	match S {
-		case Skip => Skip
-		case Assignment(LHS,RHS) => GetAssignmentsOfV(LHS,RHS,V)
-		case SeqComp(S1,S2) => SeqComp(ComputeSlides(S1,V), ComputeSlides(S2,V))
-		case IF(B0,Sthen,Selse) => IF(B0, ComputeSlides(Sthen,V) , ComputeSlides(Selse,V))
-		case DO(B,S) => DO(B, ComputeSlides(S,V))
+	E := {};
+	cfgNodes := set node | node in cfgToPdgNodeMap;
+	while (|cfgNodes| > 0) 
+	invariant forall n :: n in cfgNodes ==> n in cfgToPdgNodeMap
+	{
+		var dest : CFGNode;
+		dest :| dest in cfgNodes;
+		cfgNodes := cfgNodes - {dest};
+		match dest {
+			case Entry =>
+			case Node(destLabel) => 
+				var sourceNodes := set node | node in cfgToPdgNodeMap;
+				assert forall n :: n in sourceNodes ==> n in cfgToPdgNodeMap;
+				var theSource := PDGNode.Entry;
+				var theSourceLabel := [];
+				while (|sourceNodes| > 0) 
+				invariant forall n :: n in sourceNodes ==> n in cfgToPdgNodeMap
+				{
+					var source : CFGNode;
+					source :| source in sourceNodes;
+					sourceNodes := sourceNodes - {source};
+					match source {
+						case Entry =>
+						case Node(sourceLabel) => if (theSourceLabel < sourceLabel < destLabel) {
+								theSourceLabel := sourceLabel;
+								theSource := cfgToPdgNodeMap[source];
+							}
+						case Exit =>
+					}
+				}
+				E := E + {(theSource, cfgToPdgNodeMap[dest], Control)};
+			case Exit =>
+		}
 	}
+		
 }
 
-function method ComputeSlidesDepRtc(S: Statement, V: set<Variable>) : set<Variable>
-
-{
-	var slidesSV := ComputeSlides(S, V);
-	var U := glob(slidesSV) * def(S);
-
-	if U <= V then V else ComputeSlidesDepRtc(S, V + U)
-}
-
-
-method ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
-	//ensures SV == FlowInsensitiveSlice(S,V)
-{
-	var Vstar := ComputeSlidesDepRtc(S, V);
-
-	SV := ComputeSlides(S, Vstar);
-}

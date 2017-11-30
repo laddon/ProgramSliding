@@ -7,7 +7,13 @@ method {:verify true} Sliding_PenlessCoSlice(
 	Vnr: seq<Variable>) 
 returns (result: Statement, Sv: Statement, Scov: Statement)
 requires Valid(S)
-requires setOf(Vr) !! setOf(Vnr) // TODO: fix
+requires setOf(Vr) !! setOf(Vnr) 
+/*requires 
+	var Vr' := seqConjunction(Vr, fSetToSeq(def(S)));
+	var Vnr' := seqConjunction(Vnr, fSetToSeq(def(S)));
+	var freshV := new Fresh();
+	var fVr := freshV.CreateFresh(Vr', Vr+Vnr+fSetToSeq(glob(S)));	
+	setOf(Vr') !! glob(ComputeCoSlice(S, Vr'+Vnr', Vr', fVr))*/
 ensures Valid(result)
 ensures Refinement(S, result)
 {
@@ -35,11 +41,6 @@ ensures Refinement(S, result)
 	var fVnr1 := freshV.CreateFresh(Vnr1, Vr+Vnr+fSetToSeq(glob(S)));
 	var fVnr2 := freshV.CreateFresh(Vnr2, Vr+Vnr+fSetToSeq(glob(S)));
 
-	// Provided... TODO: "requires"
-	var fVr := freshV.CreateFresh(Vr', Vr+Vnr+fSetToSeq(glob(S)));
-	var Scov' := ComputeCoSlice(S, Vr'+Vnr', Vr', fVr);
-	assert setOf(Vr') !! glob(Scov');
-
 	var decl : seq<Variable> := iVnr1+icoV11+fVnr1+fVnr2;
 	var ivars : seq<Variable> := iVnr1+icoV11;
 	var vars : seq<Variable> := Vnr1+coV11;
@@ -56,7 +57,7 @@ ensures Refinement(S, result)
 				   SeqComp(Assignment(vars, ivarse),
 				    SeqComp(Scov, Assignment(vnrs, fvarse))))));
 	result := LocalDeclaration(decl,S');
-	assert Valid(result); // <--- result is NOT valid. Why?
+	assert Valid(result); 
 	
 	var S'' := Live(Vr'+Vnr'+coV,S');
 //	assert Refinement(S, S'');

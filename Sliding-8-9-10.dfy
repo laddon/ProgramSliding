@@ -67,13 +67,10 @@ returns (Scov: Statement)
 requires Valid(S)
 requires Vr <= V
 requires |Vr| == |fVr|
-requires forall v :: v in V ==> v !in fVr
-requires forall v :: v in glob(S) ==> v !in fVr
-requires forall v :: v in fVr ==> v !in V
-requires forall v :: v in fVr ==> v !in glob(S)
+requires mutuallyDisjoint([V, fVr])
+requires mutuallyDisjoint([fSetToSeq(glob(S)), fVr])
 ensures Valid(Scov)
-ensures forall v :: v in Vr ==> v !in glob(Scov)
-ensures forall v :: v in glob(Scov) ==> v !in Vr
+ensures mutuallyDisjoint([Vr, fSetToSeq(glob(Scov))])
 {
 	var coV := def(S) - setOf(V);
 	var S' := FinalUseSubstitution(S, Vr, fVr);

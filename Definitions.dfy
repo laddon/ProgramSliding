@@ -299,7 +299,7 @@ function method glob(S: Statement) : set<Variable>
 	set x | trigger(x) && x in def(S) + input(S)
 }
 
-function allVars(S: Statement): set<Variable>
+function method allVars(S: Statement): set<Variable>
 {
 	match S {
 		case Skip => {}
@@ -563,6 +563,8 @@ predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s
 function corresponding<T(==)>(vr: seq<T>, fvr: seq<T>, vrsubset: set<T>) : (res: seq<T>)
 requires |vr|==|fvr|
 requires vrsubset <= setOf(vr)
+ensures |vrsubset| == |res|
+ensures forall v :: v in res ==> v in fvr
 {
 	if vr == [] then [] else
 	if vr[0] in vrsubset then [fvr[0]] + corresponding(vr[1..], fvr[1..], vrsubset-{vr[0]})

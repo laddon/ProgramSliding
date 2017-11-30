@@ -1,9 +1,7 @@
 include "Definitions.dfy"
 include "Util.dfy"
+include "PDG.dfy"
 
-// Label Definition:
-newtype Branch = b: int | 1 <= x <= 2
-type Label = seq<Branch>
 
 // SlideDG Definitions:
 type Slide = Statement

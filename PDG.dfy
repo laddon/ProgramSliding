@@ -1,0 +1,83 @@
+include "Definitions.dfy"
+include "Util.dfy"
+
+// PDG Definitions:
+datatype Tag = Control | Data(vars: set<Variable>)
+type PDGNode = Label
+type PDGEdge = (PDGNode, PDGNode, Tag)
+
+method ComputePDG(S: Statement) returns (N: set<Slide>, E: set<PDGEdge>)
+{
+	
+}
+
+function FindSubstatement(S: Statement, l: Label) : Statement
+{
+	
+}
+
+function UsedVars(S: Statement, l: Label) : set<Variable>
+{
+	// call FindSubstatement
+}
+
+function DefinedVars(S: Statement, l: Label) : set<Variable>
+{
+	// call FindSubstatement
+}
+
+/*function FlowInsensitiveSlice(S: Statement, V: set<Variable>): Statement
+	// FIXME: generalize
+	requires S == Assignment(["i","sum", "prod"],["i+1","sum+i","prod*i"])
+{
+	if V == {"sum"} then Assignment(["sum"],["sum+i"])
+	else Assignment(["i","prod"],["i+1","prod*i"])
+}*/
+
+function method GetAssignmentsOfV(LHS : seq<Variable>, RHS : seq<Expression>, V: set<Variable>) : Statement
+
+{
+	if LHS == [] then Skip
+	else if LHS[0] in V then 
+	var tempRes := GetAssignmentsOfV(LHS[1..], RHS[1..], V);
+	match tempRes {
+		case Assignment(LHS1,RHS1) => Assignment([LHS[0]]+LHS1, [RHS[0]]+RHS1)
+	}
+	else GetAssignmentsOfV(LHS[1..], RHS[1..], V)
+
+	/*if LHS == [] then Skip
+	else if LHS[0] in V then SeqComp(Assignment([LHS[0]],[RHS[0]]), GetAssignmentsOfV(LHS[1..], RHS[1..], V))
+	else GetAssignmentsOfV(LHS[1..], RHS[1..], V)*/
+}
+
+function method ComputeSlides(S: Statement, V: set<Variable>) : Statement
+
+{
+	if V * def(S) == {} then Skip
+	else
+	match S {
+		case Skip => Skip
+		case Assignment(LHS,RHS) => GetAssignmentsOfV(LHS,RHS,V)
+		case SeqComp(S1,S2) => SeqComp(ComputeSlides(S1,V), ComputeSlides(S2,V))
+		case IF(B0,Sthen,Selse) => IF(B0, ComputeSlides(Sthen,V) , ComputeSlides(Selse,V))
+		case DO(B,S) => DO(B, ComputeSlides(S,V))
+	}
+}
+
+function method ComputeSlidesDepRtc(S: Statement, V: set<Variable>) : set<Variable>
+
+{
+	var slidesSV := ComputeSlides(S, V);
+	var U := glob(slidesSV) * def(S);
+
+	if U <= V then V else ComputeSlidesDepRtc(S, V + U)
+}
+
+
+method ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
+	//ensures SV == FlowInsensitiveSlice(S,V)
+{
+	var Vstar := ComputeSlidesDepRtc(S, V);
+
+	SV := ComputeSlides(S, Vstar);
+}

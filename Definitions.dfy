@@ -289,12 +289,12 @@ function method input(S: Statement) : set<Variable>
 	}
 }
 
-function trigger<T>(x: T): bool
+function method trigger<T>(x: T): bool
 {
 	true
 }
 
-function glob(S: Statement) : set<Variable>
+function method glob(S: Statement) : set<Variable>
 {
 	set x | trigger(x) && x in def(S) + input(S)
 }

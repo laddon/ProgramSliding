@@ -339,24 +339,35 @@ predicate ValidVsSSA(vsSSA: VariablesSSA) reads vsSSA
 		var res' := freshInit(vars[1..], allVars + {newInstanceStr}, vsSSA);
 		res := [newInstanceStr] + res';*/
 
+		ghost var originalN := vsSSA.n;
+		ghost var i := 0;
 
 		while newInstance in allVars
 			invariant vsSSA.variableOf == old(vsSSA.variableOf)
 			invariant vsSSA.instancesOf == old(vsSSA.instancesOf)
 			invariant newInstance !in existingInstances
 			invariant ValidVsSSA(vsSSA)
+			invariant forall num :: originalN <= num < vsSSA.n ==> ((vars[0] + intToString(num)) in existingInstances) && (i == |existingInstances|)
+			invariant originalN + i == vsSSA.n
+			invariant vars[0] + intToString(vsSSA.n) !in existingInstances
 			decreases allVars - existingInstances
 		{
 			assert newInstance in allVars;
 			assert newInstance !in existingInstances;
 			existingInstances := existingInstances + {newInstance};
 
+			assert vars[0] + intToString(vsSSA.n) !in existingInstances;
 			n := vsSSA.getAndIncN();
+			assert vars[0] + intToString(vsSSA.n-1) !in existingInstances;
+			///???assert vars[0] + intToString(originalN+i-1) !in existingInstances;
 			nStr := intToString(n);
-			assert vars[0] + nStr !in existingInstances;
+			assert vars[0] + nStr !in existingInstances by {
+				assert nStr == intToString(originalN+i+1);
+			}
 			
 			newInstance := vars[0] + nStr;			
 			assert newInstance !in existingInstances;
+			i := i + 1;
 		}
 		
 		assert !vsSSA.existsVariable2(newInstance) by {

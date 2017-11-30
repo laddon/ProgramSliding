@@ -876,3 +876,4 @@ lemma ProgramEquivalence5_7 ( S1: Statement, S2: Statement)
 	}
 	assert EquivalentStatments(SeqComp(S1,S2),SeqComp(S2,S1)) by {Corollary_5_6 (SeqComp(S1,S2), SeqComp(S2,S1), def(S1));}
 }
+

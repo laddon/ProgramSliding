@@ -17,37 +17,6 @@ function ToSSARight(XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable
 	Live(XL3i+XL4f+XL5f+Y,SeqComp(Assignment(XL1i+XL2i+XL3i+XL4i,seqVarToSeqExpr(X1+X2+X3+X4)),S'))
 }
 
-// TODO: move to a more central/reusable location: Util? Definitions?
-predicate mutuallyDisjoint<T>(seqs: seq<seq<T>>)
-{
-	forall i,j :: 0 <= i < j < |seqs| ==> setOf(seqs[i]) !! setOf(seqs[j])
-}
-
-lemma LemmaDisjointUnions<T>(seqs: seq<seq<T>>)
-	requires mutuallyDisjoint(seqs)
-	ensures forall i1,j1,i2,j2 :: 0 <= i1 < j1 < |seqs| && 0 <= i2 < j2 < |seqs| && i1 != i2 && i1 != j2 && j1 != i2 && j1 != j2 ==> 
-		setOf(seqs[i1]+seqs[j1]) !! setOf(seqs[i2]+seqs[j2])
-
-predicate mutuallyDisjoint3<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>)
-{
-	mutuallyDisjoint([s1,s2,s3])// |setOf(s1+s2+s3)| == |s1|+|s2|+|s3|
-}
-
-predicate mutuallyDisjoint4<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>)
-{
-	mutuallyDisjoint([s1,s2,s3,s4])// |setOf(s1+s2+s3+s4)| == |s1|+|s2|+|s3|+|s4|
-}
-
-predicate mutuallyDisjoint5<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>)
-{
-	mutuallyDisjoint([s1,s2,s3,s4,s5])// |setOf(s1+s2+s3+s4+s5)| == |s1|+|s2|+|s3|+|s4|+|s5|
-}
-
-predicate mutuallyDisjoint6<T>(s1: seq<T>, s2: seq<T>, s3: seq<T>, s4: seq<T>, s5: seq<T>, s6: seq<T>)
-{
-	mutuallyDisjoint([s1,s2,s3,s4,s5,s6])// |setOf(s1+s2+s3+s4+s5+s6)| == |s1|+|s2|+|s3|+|s4|+|s5|+|s6|
-}
-
 predicate PreconditionsOfToSSA(S: Statement, S': Statement, X: set<Variable>, 
 	XL1i: seq<Variable>, XL2i: seq<Variable>, XL3i: seq<Variable>, XL4i: seq<Variable>, 
 	XL4f: seq<Variable>, XL5f: seq<Variable>, 

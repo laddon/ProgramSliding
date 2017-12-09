@@ -129,72 +129,286 @@ method StringToCondition(sc: string) returns (B0: BooleanExpression)
 {}
 method StringToExpression(sc: string) returns (B0: Expression)
 {
-
-	var i:= 0;
-	var opIndex := -1;
-	while  i < (|sc|-1)
+	if (|sc| < 3)
 	{
-		if (( sc[i] == '+' || sc[i] == '-' || sc[i] == '*' || sc[i] == '/' || sc[i] == '>' || sc[i] == '<' || sc[i] == '=') && opIndex < 0)
-		{
-			opIndex := i;
-		}
-		i := i +1;
+		//ERROR
+		B0:=StringToExpressionERROR();
 	}
-	
-	i := 0;
-	while  i < (|sc|-1)
+
+	else
 	{
-		if ( sc[i] == 'V' && sc[i+1] == 'A')
+	
+		// FIND OPERATOR INDEX
+		var i:= 0;
+		var x := 0;
+		var opIndex := -1;
+		
+		while  i < (|sc|-1)
 		{
-			var Bl:Expression;
-			var Br:Expression;
-			var name := "";
-			var j:= i + 3;
-			var end:= false;
-			
-			while (!end) && j < (|sc|-1)
+			if (sc[i] == 'E' && sc[i+1] == 'X')
 			{
-				if ( sc[j] == 'V' && sc[j+1] == 'E')
-				{
-					end := true;
-				}
-				else
-				{
-					name := name + [sc[j]];
-				}
-				j := j + 1;
+				x := x + 1;
 			}
-			Bl:= StringToExpressionVA(name);
-			var i2 := j + 2;
-			
-			while ( i2 < (|sc|-1))
-				decreases |sc|-i2+4
+			else if (sc[i] == 'E' && sc[i+1] == 'E')
 			{
-				if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+				x := x - 1;
+			}
+			if (( sc[i] == '+' || sc[i] == '-' || sc[i] == '*' || sc[i] == '/' || sc[i] == '>' || sc[i] == '<' || sc[i] == '=') && opIndex < 0 && x == 1)
+			{
+				opIndex := i;
+			}
+			i := i +1;
+		}
+		
+		// PARSE THE EXPRESSION
+		i := 0;
+		x := 0;
+		var Bl:Expression;
+		var Br:Expression;
+		
+		while  i < (|sc|-1)
+		{
+			// If left side is an Expression
+			if (sc[i] == 'E' && sc[i+1] == 'X')
+			{
+				x := x + 1;
+				if (x>1)
 				{
-					var name := "";
-					var k:= i2 + 3;
-					var end:= false;
-					while (!end) && k < (|sc|-1)
-						invariant k>i2
+					var i2 := i + 2;
+					var end := false;
+			
+					while (!end) && (i2 < |sc| - 1)
+						invariant  i2 + 1 > i
 					{
-						if ( sc[k] == 'V' && sc[k+1] == 'E')
+						if ( sc[i2] == 'E' && sc[i2+1] == 'X')
 						{
+							x := x + 1;
+							i2 := i2 + 1;							
+						}
+						else if ( sc[i2] == 'E' && sc[i2+1] == 'E')
+						{
+							x := x - 1; 
+							i2 := i2 + 1;
+						}
+						else if (x == 1)
+						{
+							i2 := i2 - 3;
 							end := true;
+						}
+				
+						i2 := i2 + 1;
+					}
+					
+					if (i2 > |sc| -1 )
+					{
+						i2 := |sc| -1;
+					}
+					if (i + 2 < i2)
+					{
+						Bl := StringToExpression(sc[i+2..i2]);
+					}
+					else
+					{
+						// ERROR
+						Bl := StringToExpressionERROR();
+					}
+					
+					//Now handle the right side
+					while ( i2 < (|sc|-1))
+						decreases |sc|-i2+4
+					{
+						if ( sc[i2] == 'E' && sc[i2+1] == 'X')
+						{
+							x := x + 1;
+							var i3 := i2 + 2;
+							var end := false;
+					
+							while (!end) && (i3 < |sc| - 1)
+								invariant  i3 + 1 > i2  
+							{
+								if ( sc[i3] == 'E' && sc[i3+1] == 'X')
+								{
+									x := x + 1;
+									i3 := i3 + 1;							
+								}
+								else if ( sc[i3] == 'E' && sc[i3+1] == 'E')
+								{
+									x := x - 1; 
+									i3 := i3 + 1;
+								}
+								else if (x == 1)
+								{
+									i3 := i3 - 3;
+									end := true;
+								}
+						
+								i3 := i3 + 1;
+							}
+					
+							if (i3 > |sc| -1 )
+							{
+								i3 := |sc| -1;
+							}
+							if (i2 + 2 < i3)
+							{
+								Br := StringToExpression(sc[i2+2..i3]);
+							}
+							else
+							{
+								// ERROR
+								Br := StringToExpressionERROR();
+							}
+							
+							// Move the index Forward
+							i2:= i3;
+						}
+						else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+						{
+							var name := "";
+							var k:= i2 + 3;
+							var end:= false;
+							while (!end) && k < (|sc|-1)
+								invariant k>i2
+							{
+								if ( sc[k] == 'V' && sc[k+1] == 'E')
+								{
+									end := true;
+								}
+								else
+								{
+									name := name + [sc[k]];
+								}
+								k := k + 1;
+							}
+							Br := StringToExpressionVA(name);
+							assert k+2>i2;
+							i2 := k + 2;
+						}
+						else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
+						{
+							var name := "";
+							var k:= i2 + 3;
+							var end:= false;
+							while (!end) && k < (|sc|-1)
+								invariant k>i2
+							{
+								if ( sc[k] == 'V' && sc[k+1] == 'E')
+								{
+									end := true;
+								}
+								else
+								{
+									name := name + [sc[k]];
+								}
+								k := k + 1;
+							}
+							Br := StringToExpressionVN(name);
+							assert k+2>i2;
+							i2 := k + 2;
+						}
+																	
+						i2 := i2 + 1;
+					}
+				
+					// Move the index Forward
+					i:= i2;				
+				}
+			}
+			
+			// If left side is variable
+			else if ( sc[i] == 'V' && sc[i+1] == 'A')
+			{
+				var name := "";
+				var j:= i + 3;
+				var end:= false;
+				
+				while (!end) && j < (|sc|-1)
+				{
+					if ( sc[j] == 'V' && sc[j+1] == 'E')
+					{
+						end := true;
+					}
+					else
+					{
+						name := name + [sc[j]];
+					}
+					j := j + 1;
+				}
+				Bl:= StringToExpressionVA(name);
+				var i2 := j + 2;
+				
+				// Now parse the right side
+				while ( i2 < (|sc|-1))
+					decreases |sc|-i2+4
+				{
+					if ( sc[i2] == 'E' && sc[i2+1] == 'X')
+					{
+						x := x + 1;
+						var i3 := i2 + 2;
+						var end := false;
+				
+						while (!end) && (i3 < |sc| - 1)
+							invariant  i3 + 1 > i2  
+						{
+							if ( sc[i3] == 'E' && sc[i3+1] == 'X')
+							{
+								x := x + 1;
+								i3 := i3 + 1;							
+							}
+							else if ( sc[i3] == 'E' && sc[i3+1] == 'E')
+							{
+								x := x - 1; 
+								i3 := i3 + 1;
+							}
+							else if (x == 1)
+							{
+								i3 := i3 - 3;
+								end := true;
+							}
+					
+							i3 := i3 + 1;
+						}
+				
+						if (i3 > |sc| -1 )
+						{
+							i3 := |sc| -1;
+						}
+						if (i2 + 2 < i3)
+						{
+							Br := StringToExpression(sc[i2+2..i3]);
 						}
 						else
 						{
-							name := name + [sc[k]];
+							// ERROR
+							Br := StringToExpressionERROR();
 						}
-						k := k + 1;
+						
+						// Move the index Forward
+						i2:= i3;
 					}
-					Br := StringToExpressionVA(name);
-					assert k+2>i2;
-					i2 := k + 2;
-				}
-				else
-				{
-					if ( sc[i2] == 'V' && sc[i2+1] == 'N')
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+					{
+						var name := "";
+						var k:= i2 + 3;
+						var end:= false;
+						while (!end) && k < (|sc|-1)
+							invariant k>i2
+						{
+							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							{
+								end := true;
+							}
+							else
+							{
+								name := name + [sc[k]];
+							}
+							k := k + 1;
+						}
+						Br := StringToExpressionVA(name);
+						assert k+2>i2;
+						i2 := k + 2;
+					}
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
 					{
 						var name := "";
 						var k:= i2 + 3;
@@ -216,9 +430,9 @@ method StringToExpression(sc: string) returns (B0: Expression)
 						assert k+2>i2;
 						i2 := k + 2;
 					}
-				
+					
 					/* FOR "BE" ONLY
-					if ( sc[i2] == 'V' && sc[i2+1] == 'T')
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
 					{
 						var name := "";
 						var k:= i2 + 3;
@@ -250,76 +464,194 @@ method StringToExpression(sc: string) returns (B0: Expression)
 						i2 := k + 2;
 					}
 					*/
-					else {
-						if ( sc[i2] == 'E' && sc[i2+1] == 'X')
-						{
-							var x := 1 ;
-							var i3 := i2 + 2;
-							var end := false;
 					
-							while (!end) && (i3 < |sc| - 1)
-								invariant  i3 > i2  
+					i2 := i2 + 1;
+				}
+				
+				//Move the Index Forward
+				i := i2;		
+			}
+			
+			// If left side is number
+			else if (sc[i] == 'V' && sc[i+1] == 'N')
+			{
+				var name := "";
+				var i2:= i + 3;
+				var end:= false;
+				while (!end) && i2 < (|sc|-1)
+					invariant i2>i
+				{
+					if ( sc[i2] == 'V' && sc[i2+1] == 'E')
+					{
+						end := true;
+					}
+					else
+					{
+						name := name + [sc[i2]];
+					}
+					i2 := i2 + 1;
+				}
+				Bl := StringToExpressionVN(name);
+				assert i2+2>i;
+				i := i2 + 2;
+				i2 := i;
+				
+				// Now parse the right side
+				while ( i2 < (|sc|-1))
+					decreases |sc|-i2+4
+				{
+					if ( sc[i2] == 'E' && sc[i2+1] == 'X')
+					{
+						x := x + 1;
+						var i3 := i2 + 2;
+						var end := false;
+				
+						while (!end) && (i3 < |sc| - 1)
+							invariant  i3 + 1 > i2  
+						{
+							if ( sc[i3] == 'E' && sc[i3+1] == 'X')
 							{
-								if ( sc[i3] == 'E' && sc[i3+1] == 'X')
-								{
-									x := x + 1;
-									i3 := i3 + 1;							
-								}
-								if ( sc[i3] == 'E' && sc[i3+1] == 'E')
-								{
-									x := x - 1; 
-									i3 := i3 + 1;
-								}
-								if (x == 0)
-								{
-									end := true;
-								}
-						
+								x := x + 1;
+								i3 := i3 + 1;							
+							}
+							else if ( sc[i3] == 'E' && sc[i3+1] == 'E')
+							{
+								x := x - 1; 
 								i3 := i3 + 1;
 							}
-					
-							if (i3 > |sc| -1 )
+							else if (x == 1)
 							{
-								i3 := |sc| -1;
+								i3 := i3 - 3;
+								end := true;
 							}
-							if (i2 + 2 < i3)
+					
+							i3 := i3 + 1;
+						}
+				
+						if (i3 > |sc| -1 )
+						{
+							i3 := |sc| -1;
+						}
+						if (i2 + 2 < i3)
+						{
+							Br := StringToExpression(sc[i2+2..i3]);
+						}
+						else
+						{
+							// ERROR
+							Br := StringToExpressionERROR();
+						}
+						
+						// Move the index Forward
+						i2:= i3;
+					}
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+					{
+						var name := "";
+						var k:= i2 + 3;
+						var end:= false;
+						while (!end) && k < (|sc|-1)
+							invariant k>i2
+						{
+							if ( sc[k] == 'V' && sc[k+1] == 'E')
 							{
-								Br := StringToExpression(sc[i2+2..i3]);
+								end := true;
 							}
 							else
 							{
-								// ERROR
-								Br := StringToExpressionERROR();
+								name := name + [sc[k]];
 							}
+							k := k + 1;
 						}
+						Br := StringToExpressionVA(name);
+						assert k+2>i2;
+						i2 := k + 2;
 					}
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
+					{
+						var name := "";
+						var k:= i2 + 3;
+						var end:= false;
+						while (!end) && k < (|sc|-1)
+							invariant k>i2
+						{
+							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							{
+								end := true;
+							}
+							else
+							{
+								name := name + [sc[k]];
+							}
+							k := k + 1;
+						}
+						Br := StringToExpressionVN(name);
+						assert k+2>i2;
+						i2 := k + 2;
+					}
+					
+					/* FOR "BE" ONLY
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
+					{
+						var name := "";
+						var k:= i2 + 3;
+						var end:= false;
+						while (!end) && k < (|sc|-1)
+							invariant k>i2
+						{
+							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							{
+								end := true;
+							}
+							else
+							{
+								name := name + [sc[k]];
+							}
+							k := k + 1;
+						}
+					
+						if (name == "TRUE" || name == "true")
+						{
+							Br := StringToExpressionVT(name,true);
+						}
+						else
+						{
+							Br := StringToExpressionVT(name,false);
+						}
+					
+						assert k+2>i2;
+						i2 := k + 2;
+					}
+					*/
+					
+					i2 := i2 + 1;
 				}
-				i2 := i2 + 1;
+				
+				//Move the Index Forward
+				i := i2;		
 			}
 			
-			if (0 < opIndex < |sc|)
+			i := i+1;
+		}
+		
+		// Building the Expression
+		if (0 < opIndex < |sc|)
+		{
+			if ( sc[opIndex] == '+')
 			{
-				if ( sc[opIndex] == '+')
-				{
-					B0 := AddToExpr(Bl,Br,Bl.2+['+']+Br.2);
-				}
-				else if (sc[opIndex] == '-')
-				{
-					B0 := SubToExpr(Bl,Br,Bl.2+['-']+Br.2);
-				}
-				else if (sc[opIndex] == '*')
-				{
-					B0 := MulToExpr(Bl,Br,Bl.2+['*']+Br.2);
-				}
-				else if (sc[opIndex] == '/')
-				{
-					B0 := DevToExpr(Bl,Br,Bl.2+['/']+Br.2);
-				}
-				else 
-				{
-					//ERROR
-					B0 := StringToExpressionERROR();
-				}
+				B0 := AddToExpr(Bl,Br,Bl.2+['+']+Br.2);
+			}
+			else if (sc[opIndex] == '-')
+			{
+				B0 := SubToExpr(Bl,Br,Bl.2+['-']+Br.2);
+			}
+			else if (sc[opIndex] == '*')
+			{
+				B0 := MulToExpr(Bl,Br,Bl.2+['*']+Br.2);
+			}
+			else if (sc[opIndex] == '/')
+			{
+				B0 := DevToExpr(Bl,Br,Bl.2+['/']+Br.2);
 			}
 			else 
 			{
@@ -327,11 +659,12 @@ method StringToExpression(sc: string) returns (B0: Expression)
 				B0 := StringToExpressionERROR();
 			}
 		}
-		
-		i := i+1;
+		else 
+		{
+			//ERROR
+			B0 := StringToExpressionERROR();
+		}
 	}
-
-	//B0 := (func,Vars,sc);
 }
 
 method StringToExpressionERROR() returns (B0: Expression)

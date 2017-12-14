@@ -82,32 +82,80 @@ method StringToStatement(s1: string) returns (s2: Statement)
 		return Skip;
 	}
 
-	var commandType := (s1[0],s1[1]);
+	var commandType := [s1[0]]+[s1[1]];
 
-	/*
+	
 	if (commandType == "SK")
 	{
-		retrun Skip;
+		s2 := Skip;
 	}
 
-	if (commandType == "AS")
+	else if (commandType == "AS")
 	{
-		retrun StringToAssignment(s1[3]);
-	}
-	*/
-
-	/*	
-		TODO:
-
-		match s1 {
-		case "" => Skip
-		case ";" => SeqComp(s2, StringToStatement(s1[1]))
-		case "IF" => StringToIf(s1[1])
-		case "WHILE" => StringToDo(s1[1])
-		case "ASM" => StringToAssignment(s1[1])
-
+		if (|s1| > 2)
+		{
+			s2:= StringToAssignment(s1[3..]);
 		}
-	*/
+		else
+		{	
+			s2 := Skip;
+		}
+	}
+	else if (commandType == "SC")
+	{
+		var i := 5;
+		var end := false;
+		while (i<|s1|-1) && (!end)
+		{
+			if (s1[i] == 'S' && s1[i+1] == 'C')
+			{
+				var statement1 := StringToStatement(s1[3..i-2]); 
+				var statement2 := StringToStatement(s1[i..]);
+				s2 := SeqComp(statement1,statement2);
+				end := true;
+			}
+
+			i := i + 1;
+		}  
+		
+		if (!end)
+		{
+			s2 := Skip;
+		}
+	}
+	else if (commandType == "SE")
+	{
+		if (|s1| > 2)
+		{
+			s2 := StringToStatement(s1[3..]);
+		}
+		else 
+		{
+			s2 := Skip;
+		}	
+	}
+	else if (commandType == "IF")
+	{
+		if (|s1| > 2)
+		{
+			s2:= StringToIf(s1[3..]);
+		}
+		else
+		{	
+			s2 := Skip;
+		}
+	}
+	else if (commandType == "DO")
+	{
+		if (|s1| > 2)
+		{
+			s2:= StringToDo(s1[3..]);
+		}
+		else
+		{	
+			s2 := Skip;
+		}
+	}
 }
 
 // Convert string to DO Statement
@@ -125,8 +173,85 @@ method StringToDo(s1: string) returns (s2: Statement)
 	s2 := DO(condition,do);
 }
 
+
+
+
+
+// Convert string to IF Statement
+method StringToIf(s1: string) returns (s2: Statement)
+{
+	var sc: string;
+	var st: string;
+	var se: string;
+
+	// TODO: cut the Condition and THEN and ELSE from 's1' into 'sc' and 'st' and 'se'
+
+	var condition:= StringToCondition(sc);
+	var sthen := StringToStatement(st);
+	var selse := StringToStatement(se);
+
+	s2 := IF(condition,sthen, selse);
+}
+
+// Convert string to Assignment Statement
+method StringToAssignment(s1: string) returns (s2: Statement)
+{
+	var sl: string;
+	var sr: string;
+
+	// TODO: cut the left and right sides from 's1' into 'sl' and 'sr'
+
+	var left := StringToLHS(sl);
+	var right := StringToRHS(sr);
+
+	s2 := Assignment(left, right);
+}
+
 method StringToCondition(sc: string) returns (B0: BooleanExpression)
-{}
+{
+	B0 := StringToBooleanExpression(sc);
+}
+
+method StringToLHS(sl: string) returns (LHS: seq<Variable>)
+{
+	if (|sl| > 0)  
+	{  
+		var i := 0;
+		while i < |sl| - 4
+		{
+			if(sl[i] == 'V' && sl[i+1] == 'A') 
+			{
+				var str :="";
+				var j := i+2;
+				while j < |sl| - 1
+				{
+					if (!(sl[j] == 'V' && sl[j+1] == 'E')) 
+					{ 
+						var varChar := [sl[j]]; // convert to string == seq<char>
+						str := str + varChar;
+					}
+					else
+					{
+						j := |sl|;
+					}
+					j := j + 1;
+				}
+				var varName := [str]; // convert to seq<Variable> == seq<string>
+				LHS := LHS + varName;
+			}
+			i := i + 1;
+		}
+	}
+	else 
+	{
+		LHS := [];
+	}
+}
+
+method StringToRHS(sr: string) returns (RHS: seq<Expression>)
+{
+	// TODO
+}
 
 method StringToExpression(sc: string) returns (B0: Expression)
 {
@@ -432,40 +557,6 @@ method StringToExpression(sc: string) returns (B0: Expression)
 						i2 := k + 2;
 					}
 					
-					/* FOR "BE" ONLY
-					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
-					{
-						var name := "";
-						var k:= i2 + 3;
-						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
-						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
-							{
-								end := true;
-							}
-							else
-							{
-								name := name + [sc[k]];
-							}
-							k := k + 1;
-						}
-					
-						if (name == "TRUE" || name == "true")
-						{
-							Br := StringToExpressionVT(name,true);
-						}
-						else
-						{
-							Br := StringToExpressionVT(name,false);
-						}
-					
-						assert k+2>i2;
-						i2 := k + 2;
-					}
-					*/
-					
 					i2 := i2 + 1;
 				}
 				
@@ -591,40 +682,6 @@ method StringToExpression(sc: string) returns (B0: Expression)
 						i2 := k + 2;
 					}
 					
-					/* FOR "BE" ONLY
-					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
-					{
-						var name := "";
-						var k:= i2 + 3;
-						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
-						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
-							{
-								end := true;
-							}
-							else
-							{
-								name := name + [sc[k]];
-							}
-							k := k + 1;
-						}
-					
-						if (name == "TRUE" || name == "true")
-						{
-							Br := StringToExpressionVT(name,true);
-						}
-						else
-						{
-							Br := StringToExpressionVT(name,false);
-						}
-					
-						assert k+2>i2;
-						i2 := k + 2;
-					}
-					*/
-					
 					i2 := i2 + 1;
 				}
 				
@@ -682,6 +739,7 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 		// FIND OPERATOR INDEX
 		var i:= 0;
 		var x := 0;
+		var y := 0;
 		var opIndex := -1;
 		
 		while  i < (|sc|-1)
@@ -704,6 +762,7 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 		// PARSE THE EXPRESSION
 		i := 0;
 		x := 0;
+		y := 0;
 		var Bl:Expression;
 		var Br:Expression;
 		var Blb:BooleanExpression;
@@ -849,7 +908,140 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 							assert k+2>i2;
 							i2 := k + 2;
 						}
-						// FOR "BE" ONLY
+						
+						// IF right side is "BE" then it must be an ERROR
+						else if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+						{
+							opIndex := -1;
+							i2 := |sc| - 1;
+						}
+						// IF right side is "BE" then it must be an ERROR
+						else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
+						{
+							opIndex := -1;
+							i2 := |sc| - 1;
+						}	
+						
+						i2 := i2 + 1;
+					}
+										
+					// Move the index Forward
+					i:= i2;				
+				}
+			}
+			
+			// Left side is "BE" 
+			else if ( sc[i] == 'B' && sc[i+1] == 'E')
+			{
+				y := y + 1;
+				if (y>1)
+				{
+					var i2 := i + 2;
+					var end := false;
+			
+					while (!end) && (i2 < |sc| - 1)
+						invariant  i2 + 1 > i
+					{
+						if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+						{
+							y := y + 1;
+							i2 := i2 + 1;							
+						}
+						else if ( sc[i2] == 'B' && sc[i2+1] == 'B')
+						{
+							y := y - 1; 
+							i2 := i2 + 1;
+						}
+						else if (y == 1)
+						{
+							i2 := i2 - 3;
+							end := true;
+						}
+				
+						i2 := i2 + 1;
+					}
+					
+					if (i2 > |sc| -1 )
+					{
+						i2 := |sc| -1;
+					}
+					if (i + 2 < i2)
+					{
+						Blb := StringToBooleanExpression(sc[i+2..i2]);
+					}
+					else
+					{
+						// ERROR
+						Blb := StringToBooleanExpressionERROR();
+					}
+					
+					//Now handle the right side
+					while ( i2 < (|sc|-1))
+						decreases |sc|-i2+4
+					{
+						// IF Right side is EX then it's ERROR
+						if ( sc[i2] == 'E' && sc[i2+1] == 'X')
+						{
+							opIndex := -1;
+							i2 := |sc| - 1;
+						}
+						// IF Right side is VA then it's ERROR
+						else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+						{
+							opIndex := -1;
+							i2 := |sc| - 1;
+						}
+						// IF Right side is VN then it's ERROR
+						else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
+						{
+							opIndex := -1;
+							i2 := |sc| - 1;
+						}
+						else if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+						{
+							y := y + 1;
+							if (y>1)
+							{
+								var i3 := i2 + 2;
+								var end := false;
+				
+								while (!end) && (i3 < |sc| - 1)
+									invariant  i3 + 1 > i2
+								{
+									if ( sc[i3] == 'B' && sc[i3+1] == 'E')
+									{
+										y := y + 1;
+										i3 := i3 + 1;							
+									}
+									else if ( sc[i3] == 'B' && sc[i3+1] == 'B')
+									{
+										y := y - 1; 
+										i3 := i3 + 1;
+									}
+									else if (y == 1)
+									{
+										i3 := i3 - 3;
+										end := true;
+									}
+					
+									i3 := i3 + 1;
+								}
+						
+								if (i3 > |sc| -1 )
+								{
+									i3 := |sc| -1;
+								}
+								if (i2 + 2 < i3)
+								{
+									Brb := StringToBooleanExpression(sc[i2+2..i3]);
+								}
+								else
+								{
+									// ERROR
+									Brb := StringToBooleanExpressionERROR();
+								}
+							}
+						}
 						else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
 						{
 							var name := "";
@@ -880,13 +1072,165 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 						
 							assert k+2>i2;
 							i2 := k + 2;
-						}	
+						}
 						
 						i2 := i2 + 1;
 					}
-										
+					
 					// Move the index Forward
-					i:= i2;				
+					if (i2 > |sc| - 1 )
+					{
+						i := |sc| - 1;
+					}
+					else
+					{
+						i:= i2;	
+					}
+					
+				}
+			}
+			// IF left side is "VT" 
+			else if ( sc[i] == 'V' && sc[i+1] == 'T')
+			{
+				var name := "";
+				var i2:= i + 3;
+				var end:= false;
+				while (!end) && i2 < (|sc|-1)
+					invariant i2>i
+				{
+					if ( sc[i2] == 'V' && sc[i2+1] == 'E')
+					{
+						end := true;
+					}
+					else
+					{
+						name := name + [sc[i2]];
+					}
+					i2 := i2 + 1;
+				}
+			
+				if (name == "TRUE" || name == "true")
+				{
+					Blb := StringToExpressionVT(name,true);
+				}
+				else
+				{
+					Blb := StringToExpressionVT(name,false);
+				}
+			
+				assert i2+2>i;
+				i := i2 + 2;
+				
+				//Now handle the right side
+				while ( i2 < (|sc|-1))
+					decreases |sc|-i2+4
+				{
+					// IF Right side is EX then it's ERROR
+					if ( sc[i2] == 'E' && sc[i2+1] == 'X')
+					{
+						opIndex := -1;
+						i2 := |sc| - 1;
+					}
+					// IF Right side is VA then it's ERROR
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
+					{
+						opIndex := -1;
+						i2 := |sc| - 1;
+					}
+					// IF Right side is VN then it's ERROR
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
+					{
+						opIndex := -1;
+						i2 := |sc| - 1;
+					}
+					else if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+					{
+						y := y + 1;
+						if (y>1)
+						{
+							var i3 := i2 + 2;
+							var end := false;
+			
+							while (!end) && (i3 < |sc| - 1)
+								invariant  i3 + 1 > i2
+							{
+								if ( sc[i3] == 'B' && sc[i3+1] == 'E')
+								{
+									y := y + 1;
+									i3 := i3 + 1;							
+								}
+								else if ( sc[i3] == 'B' && sc[i3+1] == 'B')
+								{
+									y := y - 1; 
+									i3 := i3 + 1;
+								}
+								else if (y == 1)
+								{
+									i3 := i3 - 3;
+									end := true;
+								}
+				
+								i3 := i3 + 1;
+							}
+					
+							if (i3 > |sc| -1 )
+							{
+								i3 := |sc| -1;
+							}
+							if (i2 + 2 < i3)
+							{
+								Brb := StringToBooleanExpression(sc[i2+2..i3]);
+							}
+							else
+							{
+								// ERROR
+								Brb := StringToBooleanExpressionERROR();
+							}
+						}
+					}
+					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
+					{
+						var name := "";
+						var k:= i2 + 3;
+						var end:= false;
+						while (!end) && k < (|sc|-1)
+							invariant k>i2
+						{
+							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							{
+								end := true;
+							}
+							else
+							{
+								name := name + [sc[k]];
+							}
+							k := k + 1;
+						}
+					
+						if (name == "TRUE" || name == "true")
+						{
+							Brb := StringToExpressionVT(name,true);
+						}
+						else
+						{
+							Brb := StringToExpressionVT(name,false);
+						}
+					
+						assert k+2>i2;
+						i2 := k + 2;
+					}
+					
+					i2 := i2 + 1;
+				}
+				
+				// Move the index Forward
+				if (i2 > |sc| - 1 )
+				{
+					i := |sc| - 1;
+				}
+				else
+				{
+					i:= i2;	
 				}
 			}
 			
@@ -959,92 +1303,101 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 						}
 						
 						// Move the index Forward
-						i2:= i3;
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
 					{
 						var name := "";
-						var k:= i2 + 3;
+						var i3:= i2 + 3;
 						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
+						while (!end) && i3 < (|sc|-1)
+							invariant i3>i2
 						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							if ( sc[i3] == 'V' && sc[i3+1] == 'E')
 							{
 								end := true;
 							}
 							else
 							{
-								name := name + [sc[k]];
+								name := name + [sc[i3]];
 							}
-							k := k + 1;
+							i3 := i3 + 1;
 						}
 						Br := StringToExpressionVA(name);
-						assert k+2>i2;
-						i2 := k + 2;
+						assert i3+2>i2;
+						// Move the index Forward
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
 					{
 						var name := "";
-						var k:= i2 + 3;
+						var i3 := i2 + 3;
 						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
+						while (!end) && i3 < (|sc|-1)
+							invariant i3>i2
 						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							if ( sc[i3] == 'V' && sc[i3+1] == 'E')
 							{
 								end := true;
 							}
 							else
 							{
-								name := name + [sc[k]];
+								name := name + [sc[i3]];
 							}
-							k := k + 1;
+							i3 := i3 + 1;
 						}
 						Br := StringToExpressionVN(name);
-						assert k+2>i2;
-						i2 := k + 2;
+						assert i3+2>i2;
+						// Move the index Forward
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					
-					// FOR "BE" ONLY
+					// IF right side is "BE" then it must be an ERROR
+					else if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+					{
+						opIndex := -1;
+						i2 := |sc| - 1;
+					}
+					// IF right side is "BE" then it must be an ERROR
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
 					{
-						var name := "";
-						var k:= i2 + 3;
-						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
-						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
-							{
-								end := true;
-							}
-							else
-							{
-								name := name + [sc[k]];
-							}
-							k := k + 1;
-						}
-					
-						if (name == "TRUE" || name == "true")
-						{
-							Brb := StringToExpressionVT(name,true);
-						}
-						else
-						{
-							Brb := StringToExpressionVT(name,false);
-						}
-					
-						assert k+2>i2;
-						i2 := k + 2;
+						opIndex := -1;
+						i2 := |sc| - 1;
 					}
-					
-					
+										
 					i2 := i2 + 1;
 				}
 				
 				//Move the Index Forward
-				i := i2;		
+				if (i2 < |sc| - 1)
+				{
+					i := i2;
+				}
+				else
+				{
+					i := |sc| - 1;
+				}
 			}
 			
 			// If left side is number
@@ -1067,10 +1420,7 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 					i2 := i2 + 1;
 				}
 				Bl := StringToExpressionVN(name);
-				assert i2+2>i;
-				i := i2 + 2;
-				i2 := i;
-				
+								
 				// Now parse the right side
 				while ( i2 < (|sc|-1))
 					decreases |sc|-i2+4
@@ -1118,92 +1468,103 @@ method StringToBooleanExpression(sc: string) returns (B0: BooleanExpression)
 						}
 						
 						// Move the index Forward
-						i2:= i3;
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'A')
 					{
 						var name := "";
-						var k:= i2 + 3;
+						var i3:= i2 + 3;
 						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
+						while (!end) && i3 < (|sc|-1)
+							invariant i3>i2
 						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							if ( sc[i3] == 'V' && sc[i3+1] == 'E')
 							{
 								end := true;
 							}
 							else
 							{
-								name := name + [sc[k]];
+								name := name + [sc[i3]];
 							}
-							k := k + 1;
+							i3 := i3 + 1;
 						}
 						Br := StringToExpressionVA(name);
-						assert k+2>i2;
-						i2 := k + 2;
+						assert i3+2>i2;
+						
+						// Move the index Forward
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'N')
 					{
 						var name := "";
-						var k:= i2 + 3;
+						var i3 := i2 + 3;
 						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
+						while (!end) && i3 < (|sc|-1)
+							invariant i3>i2
 						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
+							if ( sc[i3] == 'V' && sc[i3+1] == 'E')
 							{
 								end := true;
 							}
 							else
 							{
-								name := name + [sc[k]];
+								name := name + [sc[i3]];
 							}
-							k := k + 1;
+							i3 := i3 + 1;
 						}
 						Br := StringToExpressionVN(name);
-						assert k+2>i2;
-						i2 := k + 2;
+						assert i3+2>i2;
+						
+						// Move the index Forward
+						if (i3 < |sc| -1)
+						{
+							i2 := i3;
+						}
+						else 
+						{
+							i2 := |sc|-1;
+						}
 					}
 					
-					// FOR "BE" ONLY
+					// IF right side is "BE" then it must be an ERROR
+					else if ( sc[i2] == 'B' && sc[i2+1] == 'E')
+					{
+						opIndex := -1;
+						i2 := |sc| - 1;
+					}
+					// IF right side is "BE" then it must be an ERROR
 					else if ( sc[i2] == 'V' && sc[i2+1] == 'T')
 					{
-						var name := "";
-						var k:= i2 + 3;
-						var end:= false;
-						while (!end) && k < (|sc|-1)
-							invariant k>i2
-						{
-							if ( sc[k] == 'V' && sc[k+1] == 'E')
-							{
-								end := true;
-							}
-							else
-							{
-								name := name + [sc[k]];
-							}
-							k := k + 1;
-						}
-					
-						if (name == "TRUE" || name == "true")
-						{
-							Brb := StringToExpressionVT(name,true);
-						}
-						else
-						{
-							Brb := StringToExpressionVT(name,false);
-						}
-					
-						assert k+2>i2;
-						i2 := k + 2;
+						opIndex := -1;
+						i2 := |sc| - 1;
 					}
-					
 					
 					i2 := i2 + 1;
 				}
 				
 				//Move the Index Forward
-				i := i2;		
+				if (i2 < |sc| - 1)
+				{
+					i := i2;		
+				}
+				else
+				{
+					i := |sc| - 1;
+				}
 			}
 			
 			i := i+1;
@@ -1370,77 +1731,6 @@ method StringToExpressionVN(sc: string) returns (B0: Expression)
 	var func :=  (state reads *  => Int(number));
 	
 	B0 := (func,Vars,sc);
-}
-
-// Convert string to IF Statement
-method StringToIf(s1: string) returns (s2: Statement)
-{
-	var sc: string;
-	var st: string;
-	var se: string;
-
-	// TODO: cut the Condition and THEN and ELSE from 's1' into 'sc' and 'st' and 'se'
-
-	var condition:= StringToCondition(sc);
-	var sthen := StringToStatement(st);
-	var selse := StringToStatement(se);
-
-	s2 := IF(condition,sthen, selse);
-}
-
-// Convert string to Assignment Statement
-method StringToAssignment(s1: string) returns (s2: Statement)
-{
-	var sl: string;
-	var sr: string;
-
-	// TODO: cut the left and right sides from 's1' into 'sl' and 'sr'
-
-	var left := StringToLHS(sl);
-	var right := StringToRHS(sr);
-
-	s2 := Assignment(left, right);
-}
-
-method StringToLHS(sl: string) returns (LHS: seq<Variable>)
-{
-	if (|sl| > 0)  
-	{  
-		var i := 0;
-		while i < |sl| - 4
-		{
-			if(sl[i] == 'V' && sl[i+1] == 'A') 
-			{
-				var str :="";
-				var j := i+2;
-				while j < |sl| - 1
-				{
-					if (!(sl[j] == 'V' && sl[j+1] == 'E')) 
-					{ 
-						var varChar := [sl[j]]; // convert to string == seq<char>
-						str := str + varChar;
-					}
-					else
-					{
-						j := |sl|;
-					}
-					j := j + 1;
-				}
-				var varName := [str]; // convert to seq<Variable> == seq<string>
-				LHS := LHS + varName;
-			}
-			i := i + 1;
-		}
-	}
-	else 
-	{
-		LHS := [];
-	}
-}
-
-method StringToRHS(sr: string) returns (RHS: seq<Expression>)
-{
-	// TODO
 }
 
 //============================================================

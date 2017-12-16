@@ -89,7 +89,6 @@ method StringToStatement(s1: string) returns (s2: Statement)
 	{
 		s2 := Skip;
 	}
-
 	else if (commandType == "AS")
 	{
 		if (|s1| > 2)
@@ -162,49 +161,319 @@ method StringToStatement(s1: string) returns (s2: Statement)
 method StringToDo(s1: string) returns (s2: Statement)
 //ensures valid ==> Valid(s2)
 {
-	var sc: string;
-	var st: string;
+	var scStart :=0;
+	var stStart :=0;
+	var scEnd :=0;
+	var stEnd :=0;
 
-	// TODO: cut the Condition and THEN and ELSE from 's1' into 'sc' and 'st' and 'se'
-
-	var condition:= StringToCondition(sc);
-	var do := StringToStatement(st);
+	var i:= 0;
 	
-	s2 := DO(condition,do);
+	if (|s1| < 6)
+	{
+		//ERROR
+		s2:= Skip;
+	}
+	else
+	{
+		while i < |s1| - 4
+			invariant |s1| >= i >= 0
+		{
+			if (s1[i] == 'C' && s1[i+1] == 'O')
+			{
+				var end := false;
+				var j := i + 4;
+				scStart := i + 3;
+				scEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'C' && s1[j+1] == 'E')
+					{
+						end := true;
+						scEnd := j-1;
+					}
+
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j;
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+			else if (s1[i] == 'T' && s1[i+1] == 'H')
+			{
+				var end := false;
+				var j := i + 4;
+				stStart := i + 3;
+				stEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'T' && s1[j+1] == 'E')
+					{
+						end := true;
+						stEnd := j-1;
+					}
+
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j; 
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+
+			i := i + 1;
+		}
+
+		if (scStart < scEnd < |s1| && stStart < stEnd < |s1|)
+		{
+			var condition:= StringToCondition(s1[scStart..scEnd]);
+			var do := StringToStatement(s1[stStart..stEnd]);
+		
+			s2 := DO(condition,do);
+		}
+		else
+		{
+			//ERROR
+			s2 := Skip;
+		}
+	}	
+	
 }
-
-
-
-
 
 // Convert string to IF Statement
 method StringToIf(s1: string) returns (s2: Statement)
 {
-	var sc: string;
-	var st: string;
-	var se: string;
+	var scStart :=0;
+	var seStart :=0;
+	var stStart :=0;
+	var scEnd :=0;
+	var seEnd :=0;
+	var stEnd :=0;
 
-	// TODO: cut the Condition and THEN and ELSE from 's1' into 'sc' and 'st' and 'se'
+	var i:= 0;
+	
+	if (|s1| < 6)
+	{
+		//ERROR
+		s2:= Skip;
+	}
+	else
+	{
+		while i < |s1| - 4
+			invariant |s1| >= i >= 0
+		{
+			if (s1[i] == 'C' && s1[i+1] == 'O')
+			{
+				var end := false;
+				var j := i + 4;
+				scStart := i + 3;
+				scEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'C' && s1[j+1] == 'E')
+					{
+						end := true;
+						scEnd := j-1;
+					}
 
-	var condition:= StringToCondition(sc);
-	var sthen := StringToStatement(st);
-	var selse := StringToStatement(se);
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j;
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+			else if (s1[i] == 'T' && s1[i+1] == 'H')
+			{
+				var end := false;
+				var j := i + 4;
+				stStart := i + 3;
+				stEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'T' && s1[j+1] == 'E')
+					{
+						end := true;
+						stEnd := j-1;
+					}
 
-	s2 := IF(condition,sthen, selse);
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j; 
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+			else if (s1[i] == 'E' && s1[i+1] == 'L')
+			{
+				var end := false;
+				var j := i + 4;
+				seStart := i + 3;
+				seEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'E' && s1[j+1] == 'S')
+					{
+						end := true;
+						seEnd := j-1;
+					}
+
+					j := j + 1;
+				}
+				
+				if (end )
+				{
+					i := j; 
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+				
+			}
+
+			i := i + 1;
+		}
+
+		if (scStart < scEnd < |s1| && stStart < stEnd < |s1|)
+		{
+			var condition:= StringToCondition(s1[scStart..scEnd]);
+			var sthen := StringToStatement(s1[stStart..stEnd]);
+		
+			if (seStart < seEnd < |s1|)
+			{
+				var selse := StringToStatement(s1[seStart..seEnd]);
+				s2 := IF(condition,sthen, selse);
+			}
+			else
+			{
+				s2 := IF(condition,sthen, Skip);
+			}
+		}
+		else
+		{
+			//ERROR
+			s2 := Skip;
+		}
+	}
 }
 
 // Convert string to Assignment Statement
 method StringToAssignment(s1: string) returns (s2: Statement)
 {
-	var sl: string;
-	var sr: string;
+	var slStart :=0;
+	var srStart :=0;
+	var slEnd :=0;
+	var srEnd :=0;
 
-	// TODO: cut the left and right sides from 's1' into 'sl' and 'sr'
+	var i:= 0;
+	
+	if (|s1| < 6)
+	{
+		//ERROR
+		s2:= Skip;
+	}
+	else
+	{
+		while i < |s1| - 4
+			invariant |s1| >= i >= 0
+		{
+			if (s1[i] == 'L' && s1[i+1] == 'S')
+			{
+				var end := false;
+				var j := i + 4;
+				slStart := i + 3;
+				slEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'L' && s1[j+1] == 'E')
+					{
+						end := true;
+						slEnd := j-1;
+					}
 
-	var left := StringToLHS(sl);
-	var right := StringToRHS(sr);
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j;
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+			else if (s1[i] == 'R' && s1[i+1] == 'S')
+			{
+				var end := false;
+				var j := i + 4;
+				srStart := i + 3;
+				srEnd := |s1|-1;
+				while j < |s1|-1 && !end
+					invariant |s1|> j >= i
+				{
+					if (s1[j] == 'S' && s1[j+1] == 'E')
+					{
+						end := true;
+						srEnd := j-1;
+					}
 
-	s2 := Assignment(left, right);
+					j := j + 1;
+				}
+				
+				if (end)
+				{
+					i := j; 
+				}
+				else 
+				{
+					i := |s1|-2; 
+				}
+			}
+
+			i := i + 1;
+		}
+
+		if (slStart < slEnd < |s1| && srStart < srEnd < |s1|)
+		{
+			var sl:= StringToLHS(s1[slStart..slEnd]);
+			var sr := StringToRHS(s1[srStart..srEnd]);
+		
+			s2 := Assignment(sl,sr);
+		}
+		else
+		{
+			//ERROR
+			s2 := Skip;
+		}
+	}
 }
 
 method StringToCondition(sc: string) returns (B0: BooleanExpression)
@@ -214,6 +483,7 @@ method StringToCondition(sc: string) returns (B0: BooleanExpression)
 
 method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 {
+	LHS := [];
 	if (|sl| > 0)  
 	{  
 		var i := 0;
@@ -242,15 +512,52 @@ method StringToLHS(sl: string) returns (LHS: seq<Variable>)
 			i := i + 1;
 		}
 	}
-	else 
-	{
-		LHS := [];
-	}
 }
 
+//Need to complete to BE as Well
 method StringToRHS(sr: string) returns (RHS: seq<Expression>)
 {
-	// TODO
+	RHS := [];
+	var x := 0;
+	if (|sr| > 0)  
+	{  
+		var i := 0;
+		while i < |sr| - 4
+		{
+			if(sr[i] == 'E' && sr[i+1] == 'X') 
+			{
+				x := x + 1;
+				var str :="";
+				var j := i+2;
+				while j < |sr| - 1
+				{
+					if (sr[j] == 'E' && sr[j+1] == 'X')
+					{
+						x := x + 1;
+					}
+					else if (sr[j] == 'E' && sr[j+1] == 'E')
+					{ 
+						x := x - 1;
+						if (x == 0)
+						{
+							var varName := StringToExpression(str); // convert to seq<Variable> == seq<string>
+							RHS := RHS + [varName];
+							str := "";
+						}
+						
+					}
+					else
+					{
+						var varChar := [sr[j]]; // convert to string == seq<char>
+						str := str + varChar;
+					}
+					j := j + 1;
+				}
+				
+			}
+			i := i + 1;
+		}
+	}
 }
 
 method StringToExpression(sc: string) returns (B0: Expression)

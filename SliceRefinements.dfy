@@ -129,7 +129,7 @@ requires Valid(T)
 lemma Corollary_5_6Help2Lemma(S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)
 requires Valid(T)
-ensures Corollary_5_6Help2(S,T,V) == (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) == wp(T, P).0(s))
+ensures Corollary_5_6Help2(S,T,V) <==> (forall P: Predicate, s: State :: vars(P) !! V ==> wp(S, P).0(s) == wp(T, P).0(s))
 
 lemma EquivalentCorollary_5_6Help2SingleLemma(S: Statement, T: Statement, V: set<Variable>)
 requires Valid(S)
@@ -577,7 +577,7 @@ lemma ProgramEquivalence5_7 ( S1: Statement, S2: Statement)
 			wp(S1,(wp(S2,P))).0(s);
 			== {RE3(S2,P);Leibniz2(wp, wp(S2,P), AND(P, wp(S2,ConstantPredicate(true))), S1);}
 			wp(S1, AND(P, wp(S2,ConstantPredicate(true)))).0(s);
-			== {ConjWp(S1, P, wp(S2,ConstantPredicate(true)));}
+			== {FinitelyConjunctive(S1, P, wp(S2,ConstantPredicate(true)));}
 			AND(wp(S1,P), wp(S1,(wp(S2,ConstantPredicate(true))))).0(s);
 			== { var P1 := wp(S2,ConstantPredicate(true)); assert vars(P1) !! def(S1) by { assert vars(P1) <= input(S2) by { RE2(S2,ConstantPredicate(true)); assert vars(P1) <= vars(ConstantPredicate(true)) - ddef(S2) + input(S2); assert vars(ConstantPredicate(true)) - ddef(S2) + input(S2) <= input(S2) by { assert vars(ConstantPredicate(true)) == {}; }} assert def(S1) !! input(S2);} RE3(S1,P1); }
 			AND(wp(S1,P),AND(wp(S2,ConstantPredicate(true)), wp(S1,ConstantPredicate(true)))).0(s);
@@ -598,7 +598,7 @@ lemma ProgramEquivalence5_7 ( S1: Statement, S2: Statement)
 			wp(S2,(wp(S1,P))).0(s);
 			== {RE3(S1,P);Leibniz2(wp,wp(S1,P),AND(P,wp(S1,ConstantPredicate(true))),S2);}
 			wp(S2,AND(P , wp(S1,ConstantPredicate(true)))).0(s);
-			== {ConjWp(S2, P, wp(S1,ConstantPredicate(true)));}
+			== {FinitelyConjunctive(S2, P, wp(S1,ConstantPredicate(true)));}
 			AND(wp(S2,P), wp(S2,(wp(S1,ConstantPredicate(true))))).0(s);
 			== {var P1 := wp(S1,ConstantPredicate(true)); assert vars(P1) !! def(S2) by { assert vars(P1) <= input(S1) by { RE2(S1,ConstantPredicate(true)); } assert def(S2) !! input(S1) ;} RE3(S2,P1); }
 			AND(wp(S2,P), AND(wp(S2,ConstantPredicate(true)), wp(S1,ConstantPredicate(true)))).0(s);

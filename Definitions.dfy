@@ -471,10 +471,18 @@ function IMPLIES(P1: Predicate,P2: Predicate): Predicate
 {
 	((s: State) reads * requires P1.0.requires(s) && P2.0.requires(s) => P1.0(s) ==> P2.0(s), P1.1 + P2.1) 
 }
-
+function IMPLIESBE(B0: BooleanExpression,P2: Predicate): Predicate  
+{
+	((s: State) reads * requires B0.0.requires(s) && P2.0.requires(s) => B0.0(s) ==> P2.0(s), B0.1 + P2.1) 
+}
 function NOT(P1: Predicate): Predicate  
 {
 	((s: State) reads * requires P1.0.requires(s) => !P1.0(s), P1.1)
+}
+
+function NOTBE(B0: BooleanExpression): BooleanExpression  
+{
+	((s: State) reads * requires B0.0.requires(s) => !B0.0(s), B0.1,B0.2)
 }
 
 //============================================================
@@ -484,10 +492,32 @@ function NOT(P1: Predicate): Predicate
 lemma FinitelyConjunctive(S: Statement,P1: Predicate, P2: Predicate)
 requires Valid(S)
 ensures EquivalentPredicates(AND(wp(S,P1),wp(S,P2)),wp(S,AND(P1,P2)))
+/*{
+	forall s:State {
+	calc {
+		AND(wp(S,P1),wp(S,P2)).0(s);
+		=={}
+		wp(S,P1).0(s) && wp(S,P2).0(s);
+		=={}
+
+		== {assert EquivalentPredicates(AND(wp(S,P1),wp(S,P2)),wp(S,AND(P1,P2))) by {Leibniz2(wp, AND(P1,ConstantPredicate(true)), P1,S);}}
+		wp(S,AND(P1,P2)).0(s);
+		}
+	}
+}*/
 
 lemma IdentityOfAND(S: Statement,P1: Predicate)
 requires Valid(S)
 ensures EquivalentPredicates(wp(S,AND(P1,ConstantPredicate(true))),wp(S,P1))
+{
+	forall s:State {
+	calc {
+		wp(S,AND(P1,ConstantPredicate(true))).0(s);
+		== {assert EquivalentPredicates(wp(S,AND(P1,ConstantPredicate(true))),wp(S,P1)) by {Leibniz2(wp, AND(P1,ConstantPredicate(true)), P1,S);}}
+		wp(S,P1).0(s);
+		}
+	}
+}
 
 lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
 requires EquivalentPredicates(P1,P2)
@@ -503,17 +533,10 @@ lemma Leibniz3<T>(f: (Statement,Predicate)->T, S: Statement,SV: Statement ,p: Pr
 requires f.requires(S,p) && f.requires(SV,p)
 ensures f(S,p) == f(SV,p)
 
-lemma ConjWp(S: Statement, P1: Predicate, P2: Predicate)
-requires Valid(S)
-ensures  EquivalentPredicates(wp(S,AND(P1,P2)),AND(wp(S,P1),wp(S,P2)))
-
-lemma LocalDecStrangers(S: Statement,P: Predicate)
-requires S.LocalDeclaration? 
-ensures S.LocalDeclaration? ==> vars(P) !! setOf(S.L)
-
-lemma LocalDecStrangers2(S: Statement,P: Predicate)
-requires S.LocalDeclaration? 
-ensures S.LocalDeclaration? ==> vars(P) - ddef(S.S0) + input(S.S0) == vars(P) - ddef(S) + input(S)
+lemma Leibniz4(S1: Statement, S2: Statement, S2': Statement)
+requires Valid(S1) && Valid(S2) && Valid(S2')
+requires EquivalentStatments(S2,S2')
+ensures EquivalentStatments(SeqComp(S1,S2),SeqComp(S1,S2'))
 
 lemma SubDefinitionLemma(P: Predicate,LHS: seq<Variable>, RHS: seq<Expression>,s: State)
 requires setOf(LHS) !! vars(P)
@@ -521,11 +544,6 @@ requires P.0.requires(s)
 requires |LHS| == |RHS|
 requires sub(P, LHS, RHS).0.requires(s)
 ensures P.0(s) == sub(P, LHS, RHS).0(s)
- 
-lemma Leibniz4(S1: Statement, S2: Statement, S2': Statement)
-requires Valid(S1) && Valid(S2) && Valid(S2')
-requires EquivalentStatments(S2,S2')
-ensures EquivalentStatments(SeqComp(S1,S2),SeqComp(S1,S2'))
 
 predicate mutuallyDisjoint<T>(seqs: seq<seq<T>>)
 {

@@ -61,8 +61,8 @@ ensures vars(wp(S,P)) <= vars(P) - ddef(S) + input(S)
 			vars(wp(S,P));
 			== {/* IF definition */}
 			vars(wp(IF(B0, Sthen, Selse),P));
-			== {/* wp definitionof IF */Leibniz(vars,wp(IF(B0, Sthen, Selse),P),AND(IMPLIES(B0,wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));}
-			vars(AND(IMPLIES(B0,wp(Sthen,P)), IMPLIES(NOT(B0),wp(Selse,P))));
+			== {/* wp definitionof IF */Leibniz(vars,wp(IF(B0, Sthen, Selse),P),AND(IMPLIESBE(B0,wp(Sthen,P)), IMPLIESBE(NOTBE(B0),wp(Selse,P))));}
+			vars(AND(IMPLIESBE(B0,wp(Sthen,P)), IMPLIESBE(NOTBE(B0),wp(Selse,P))));
 			== {/* def. of glob; glob.B = glob.(¬B) */}
 			B0.1 + vars(wp(Sthen,P)) + vars(wp(Selse,P));
 			<= {/* proviso, twice */}
@@ -126,7 +126,7 @@ ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPredicate(true))))
 		wp(S,P).0(s);
 		== {IdentityOfAND(S,P);}
 		wp(S,AND(P,ConstantPredicate(true))).0(s);
-		== {ConjWp(S, P, ConstantPredicate(true));}
+		== {FinitelyConjunctive(S, P, ConstantPredicate(true));}
 		AND(wp(S,P),wp(S,ConstantPredicate(true))).0(s);
 		== {/*def of wp*/}
 		AND(P,wp(S,ConstantPredicate(true))).0(s);
@@ -141,13 +141,13 @@ ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPredicate(true))))
 		wp(S1, wp(S2, P)).0(s);
 		== {assert def(S2) !! vars(P);RE3(S2,P); Leibniz2(wp,wp(S2, P),AND(P,wp(S2,ConstantPredicate(true))),S1);}
 		wp(S1, AND(P,wp(S2,ConstantPredicate(true)))).0(s);
-		== {/* wp(S1) is finitely conjunctive */ConjWp(S1, P, wp(S2,ConstantPredicate(true)));}
+		== {/* wp(S1) is finitely conjunctive */FinitelyConjunctive(S1, P, wp(S2,ConstantPredicate(true)));}
 		AND(wp(S1,P),wp(S1,wp(S2,ConstantPredicate(true)))).0(s);
 		== {assert def(S1) !! vars(P);}
 		AND(AND(P,wp(S1,ConstantPredicate(true))),wp(S1,wp(S2,ConstantPredicate(true)))).0(s);
 		== {}
 		AND(P,AND(wp(S1,ConstantPredicate(true)),wp(S1,wp(S2,ConstantPredicate(true))))).0(s);
-		== {/* finitely conjunctive */ConjWp(S1, ConstantPredicate(true),wp(S2,ConstantPredicate(true)));}
+		== {/* finitely conjunctive */FinitelyConjunctive(S1, ConstantPredicate(true),wp(S2,ConstantPredicate(true)));}
 		AND(P,wp(S1,AND(ConstantPredicate(true),wp(S2,ConstantPredicate(true))))).0(s);
 		== {/* identity element of ^ */assert def(S2) !! vars(ConstantPredicate(true));RE3(S2,ConstantPredicate(true));Leibniz2(wp,wp(S2, ConstantPredicate(true)),AND(ConstantPredicate(true),wp(S2,ConstantPredicate(true))),S1);}
 		AND(P,wp(S1,wp(S2,ConstantPredicate(true)))).0(s);
@@ -163,19 +163,19 @@ ensures EquivalentPredicates(wp(S,P), AND(P, wp(S,ConstantPredicate(true))))
 			== {/* IF definition */}
 			wp(IF(B0, Sthen, Selse),P).0(s);
 			== {/* wp definition of IF */}
-			AND(IMPLIES(B0,wp(Sthen,P)),IMPLIES(NOT(B0),wp(Selse,P))).0(s);
+			AND(IMPLIESBE(B0,wp(Sthen,P)),IMPLIESBE(NOTBE(B0),wp(Selse,P))).0(s);
 			== {/*proviso: def(IF) !! vars(P) => def(Sthen) !! vars(P) */}
-			AND(IMPLIES(B0,AND(P,wp(Sthen,ConstantPredicate(true)))),IMPLIES(NOT(B0),wp(Selse,P))).0(s);
+			AND(IMPLIESBE(B0,AND(P,wp(Sthen,ConstantPredicate(true)))),IMPLIESBE(NOTBE(B0),wp(Selse,P))).0(s);
 			== {/*proviso: def(IF) !! vars(P) => def(Selse) !! vars(P) */}
-			AND(IMPLIES(B0,AND(P,wp(Sthen,ConstantPredicate(true)))),IMPLIES(NOT(B0),AND(P,wp(Selse,ConstantPredicate(true))))).0(s);
+			AND(IMPLIESBE(B0,AND(P,wp(Sthen,ConstantPredicate(true)))),IMPLIESBE(NOTBE(B0),AND(P,wp(Selse,ConstantPredicate(true))))).0(s);
 			== {/* pred. calc.: [X => (Y && Z) == (X => Y) && (X => Z)] */}
-			AND(AND(IMPLIES(B0,P),IMPLIES(B0,wp(Sthen,ConstantPredicate(true)))),IMPLIES(NOT(B0),AND(P,wp(Selse,ConstantPredicate(true))))).0(s);
+			AND(AND(IMPLIESBE(B0,P),IMPLIESBE(B0,wp(Sthen,ConstantPredicate(true)))),IMPLIESBE(NOTBE(B0),AND(P,wp(Selse,ConstantPredicate(true))))).0(s);
 			== {/* pred. calc.: [X => (Y && Z) == (X => Y) && (X => Z)] */}
-			AND(AND(IMPLIES(B0,P),IMPLIES(B0,wp(Sthen,ConstantPredicate(true)))),AND(IMPLIES(NOT(B0),P),IMPLIES(NOT(B0),wp(Selse,ConstantPredicate(true))))).0(s);
+			AND(AND(IMPLIESBE(B0,P),IMPLIESBE(B0,wp(Sthen,ConstantPredicate(true)))),AND(IMPLIESBE(NOTBE(B0),P),IMPLIESBE(NOTBE(B0),wp(Selse,ConstantPredicate(true))))).0(s);
 			== {/* pred. calc.: [(A && B) && C == (A && C) && B] */}
-			AND(AND(IMPLIES(B0,P),IMPLIES(NOT(B0),P)),AND(IMPLIES(B0,wp(Sthen,ConstantPredicate(true))),IMPLIES(NOT(B0),wp(Selse,ConstantPredicate(true))))).0(s);
+			AND(AND(IMPLIESBE(B0,P),IMPLIESBE(NOTBE(B0),P)),AND(IMPLIESBE(B0,wp(Sthen,ConstantPredicate(true))),IMPLIESBE(NOTBE(B0),wp(Selse,ConstantPredicate(true))))).0(s);
 			== {/* pred. calc.: [Y => Z) && (!Y => Z) == Z] */}
-			AND(P,AND(IMPLIES(B0,wp(Sthen,ConstantPredicate(true))),IMPLIES(NOT(B0),wp(Selse,ConstantPredicate(true))))).0(s);
+			AND(P,AND(IMPLIESBE(B0,wp(Sthen,ConstantPredicate(true))),IMPLIESBE(NOTBE(B0),wp(Selse,ConstantPredicate(true))))).0(s);
 			== {/* wp definition of IF */}
 			AND(P,wp(IF(B0,Sthen,Selse),ConstantPredicate(true))).0(s);
 			== {/* IF definition */}

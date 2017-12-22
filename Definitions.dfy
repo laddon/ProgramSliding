@@ -489,22 +489,9 @@ function NOTBE(B0: BooleanExpression): BooleanExpression
 //					*** Global Theorem ***
 //============================================================
 
-lemma FinitelyConjunctive(S: Statement,P1: Predicate, P2: Predicate)
+lemma FinitelyConjunctive(S: Statement, P1: Predicate, P2: Predicate)
 requires Valid(S)
 ensures EquivalentPredicates(AND(wp(S,P1),wp(S,P2)),wp(S,AND(P1,P2)))
-/*{
-	forall s:State {
-	calc {
-		AND(wp(S,P1),wp(S,P2)).0(s);
-		=={}
-		wp(S,P1).0(s) && wp(S,P2).0(s);
-		=={}
-
-		== {assert EquivalentPredicates(AND(wp(S,P1),wp(S,P2)),wp(S,AND(P1,P2))) by {Leibniz2(wp, AND(P1,ConstantPredicate(true)), P1,S);}}
-		wp(S,AND(P1,P2)).0(s);
-		}
-	}
-}*/
 
 lemma IdentityOfAND(S: Statement,P1: Predicate)
 requires Valid(S)
@@ -518,6 +505,14 @@ ensures EquivalentPredicates(wp(S,AND(P1,ConstantPredicate(true))),wp(S,P1))
 		}
 	}
 }
+
+lemma LocalDecStrangers(S: Statement,P: Predicate)
+requires S.LocalDeclaration? 
+ensures S.LocalDeclaration? ==> vars(P) !! setOf(S.L)
+
+lemma LocalDecStrangers2(S: Statement,P: Predicate)
+requires S.LocalDeclaration? 
+ensures S.LocalDeclaration? ==> vars(P) - ddef(S.S0) + input(S.S0) == vars(P) - ddef(S) + input(S)
 
 lemma Leibniz<T>(f: Predicate->T, P1: Predicate, P2: Predicate)
 requires EquivalentPredicates(P1,P2)

@@ -4,19 +4,21 @@ include "PDG.dfy"
 
 
 // SlideDG Definitions:
-type Slide = Statement
+type Slide = (PDGNode, Variable, set<PDGNode>)
 type Edge = (Slide, Slide, set<Variable>)
+type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 
-method ComputeSlideDG(S: Statement) returns (N: set<Slide>, E: set<Edge>)
-{
-	
-}
+method ComputeSlideDG(S: Statement, N: set<PDGNode>, E: set<PDGEdge>) returns (slideDG: SlideDG)
+
 
 method ComputeSlide(S: Statement, v: Variable, l: Label) returns (n: Slide)
-{
-	
-}
 
+
+
+
+
+
+/*
 /*function FlowInsensitiveSlice(S: Statement, V: set<Variable>): Statement
 	// FIXME: generalize
 	requires S == Assignment(["i","sum", "prod"],["i+1","sum+i","prod*i"])
@@ -71,4 +73,4 @@ method ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
 	var Vstar := ComputeSlidesDepRtc(S, V);
 
 	SV := ComputeSlides(S, Vstar);
-}
+}*/

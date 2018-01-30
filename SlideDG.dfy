@@ -40,6 +40,7 @@ method ComputeSlideDGNodes(S: Statement, pdgN: set<PDGNode>) returns (slides: se
 	}
 }
 
+<<<<<<< HEAD
 method ComputeSlideDGEdges(S: Statement, Slides: set<Slide>) returns (edges: set<Edge>)
 {
 	edges := {};
@@ -128,3 +129,5 @@ method ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
 
 	SV := ComputeSlides(S, Vstar);
 }*/
+=======
+>>>>>>> 2a8350dc94ab6aa7a5dbc6477f065245d02fcd0b

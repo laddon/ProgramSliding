@@ -11,13 +11,12 @@ type CFGEdge = (CFGNode, CFGNode)
 type CFG = (set<CFGNode>, set<CFGEdge>, map<CFGNode, set<CFGNode>>) // map from cfgNode to it's successors
 
 method ComputeCFG(S: Statement) returns (cfg: CFG)
-/*{
+{
 	var N := ComputeCFGNodes(S, []);
 	var E := ComputeCFGEdges(S, N);
-
-	cfg.0 := N;
-	cfg.1 := E;
-}*/
+	var m : map<CFGNode, set<CFGNode>>; // TODO
+	cfg := (N, E, m);
+}
 
 function method ComputeCFGNodes(S: Statement, l: Label) : set<CFGNode>
 {
@@ -33,7 +32,7 @@ function method ComputeCFGNodes(S: Statement, l: Label) : set<CFGNode>
 function method ComputeCFGEdges(S: Statement, N: set<CFGNode>) : set<CFGEdge>
 
 
-function FindSubstatement(S: Statement, l: Label) : Statement
+function method FindSubstatement(S: Statement, l: Label) : Statement
 	requires |l| >= 1
 {
 	match S {
@@ -53,7 +52,7 @@ function UsedVars(S: Statement, l: Label) : set<Variable>
 
 }*/
 
-function DefinedVars(S: Statement, l: Label) : set<Variable>
+function method DefinedVars(S: Statement, l: Label) : set<Variable>
 /*{
 	// call FindSubstatement
 

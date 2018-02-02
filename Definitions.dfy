@@ -407,26 +407,26 @@ predicate SliceRefinement(S1: Statement, S2: Statement,V: set<Variable>)
 	requires Valid(S1)
 	requires Valid(S2)
 {
-   forall P: Predicate,s: State :: (vars(P) <= V) ==> ((wp(S1,P).0(s) ==> wp(S2,P).0(s)))
+   forall P: Predicate,s: State :: (vars(P) <= V) ==> (wp(S1,P).0(s) ==> wp(S2,P).0(s))
 }
 
 lemma SliceRefinementLemma(S1: Statement, S2: Statement,V: set<Variable>)
 requires Valid(S1)
 requires Valid(S2)
-ensures SliceRefinement(S1, S2, V) <==> (forall P: Predicate,s: State :: (vars(P) <= V) ==> ((wp(S1,P).0(s) ==> wp(S2,P).0(s))))
+ensures SliceRefinement(S1, S2, V) <==> (forall P: Predicate,s: State :: (vars(P) <= V) ==> (wp(S1,P).0(s) ==> wp(S2,P).0(s)))
 
 predicate CoSliceRefinement(S1: Statement, S2: Statement,V: set<Variable>)
 	reads *
 	requires Valid(S1)
 	requires Valid(S2)
 {
-   forall P: Predicate,s: State :: (vars(P) !! V) ==> ((wp(S1,P).0(s) ==> wp(S2,P).0(s)))
+   forall P: Predicate,s: State :: (vars(P) !! V) ==> (wp(S1,P).0(s) ==> wp(S2,P).0(s))
 }
 
 lemma CoSliceRefinementLemma(S1: Statement, S2: Statement,V: set<Variable>)
 requires Valid(S1)
 requires Valid(S2)
-ensures CoSliceRefinement(S1, S2, V) <==> (forall P: Predicate,s: State :: (vars(P) !! V) ==> ((wp(S1,P).0(s) ==> wp(S2,P).0(s))))
+ensures CoSliceRefinement(S1, S2, V) <==> (forall P: Predicate,s: State :: (vars(P) !! V) ==> (wp(S1,P).0(s) ==> wp(S2,P).0(s)))
 
 
 //============================================================

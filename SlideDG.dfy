@@ -4,7 +4,7 @@ include "PDG.dfy"
 
 
 // SlideDG Definitions:
-type Slide = (PDGNode, Variable, set<PDGNode>)
+type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNode
 type Edge = (Slide, Slide, set<Variable>)
 type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 

@@ -59,3 +59,5 @@ function method DefinedVars(S: Statement, l: Label) : set<Variable>
 	var subStatement := FindSubstatement(S, l);
 
 }*/
+
+function Neighbours(n: CFGNode) : set<CFGNode>

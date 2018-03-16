@@ -3,27 +3,34 @@ include "Util.dfy"
 include "PDG.dfy"
 include "SlideDG.dfy"
 
-method {:verify false}ComputeSlice(S: Statement, V: set<Variable>) returns (S_V: set<Slide>)
+method {:verify false}ComputeSlice(S: Statement, V: set<Variable>) returns (slidesSV: set<Slide>)
+	ensures forall Sm :: Sm in slidesSV <==> Sm in finalDefSlides( , , V) || ( exists Sn in finalDefSlides( , , V) and path (using generic path) in slideDG from Sm to Sn)
 {
 	var cfg := ComputeCFG(S);
 	var pdgN, pdgE := ComputePDG(S, cfg); // TODO: Change to PDG
 	var slideDG := ComputeSlideDG(S, pdgN, pdgE);
-	S_V := finalDefSlides(slideDG, cfg, V);
-	var worklist := S_V;
+	slidesSV := FindFinalDefSlides(slideDG, cfg, V);
+	var worklist := slidesSV;
 
 	while (|worklist| > 0)
-		invariant forall Sn :: Sn in S_V ==> Sn in slideDG.2
+		invariant forall Sn :: Sn in slidesSV ==> Sn in slideDG.2
 	{
-		var Sn :| Sn in S_V;
+		var Sn :| Sn in slidesSV;
 		worklist := worklist - {Sn};
 
-		S_V := S_V + slideDG.2[Sn];
+		slidesSV := slidesSV + slideDG.2[Sn];
 	}
 }
 
-method {:verify false}finalDefSlides(slideDG: SlideDG, cfg: CFG, V: set<Variable>) returns (S_V: set<Slide>)
+function finalDefSlides(slideDG: SlideDG, cfg: CFG, V: set<Variable>): set<Slide>
 {
-	S_V := {};
+	set slide | slide in slideDG.1 && slide.1 in V && slide in finalDefSlidesOfVariable(slideDG, cfg, slide.1)
+}
+
+method {:verify false}FindFinalDefSlides(slideDG: SlideDG, cfg: CFG, V: set<Variable>) returns (slidesSV: set<Slide>)
+	ensures slidesSV == finalDefSlides(slideDG, cfg, V)
+{
+	slidesSV := {};
 	var copyV := V;
 
 	while (|copyV| > 0)
@@ -31,14 +38,20 @@ method {:verify false}finalDefSlides(slideDG: SlideDG, cfg: CFG, V: set<Variable
 		var v :| v in copyV;
 		copyV := copyV - {v};
 
-		var Sv := finalDefSlidesOfVariable(slideDG, cfg, v);
-		S_V := S_V + Sv;
+		var Sv := FindFinalDefSlidesOfVariable(slideDG, cfg, v);
+		slidesSV := slidesSV + Sv;
 	}
 }
 
-method {:verify false}finalDefSlidesOfVariable(slideDG: SlideDG, cfg: CFG, v: Variable) returns (Sv: set<Slide>)
+function finalDefSlidesOfVariable(slideDG: SlideDG, cfg: CFG, v: Variable): set<Slide>
 {
-	Sv := {};
+	set slide | slide in slideDG.1 && ReachingDefinition(cfg, CFGNode.Exit, slide.0, v)
+}
+
+method {:verify false}FindFinalDefSlidesOfVariable(slideDG: SlideDG, cfg: CFG, v: Variable) returns (slidesSv: set<Slide>)
+	ensures slidesSv == finalDefSlidesOfVariable(slideDG, cfg, v)
+{
+	slidesSv := {};
 	var vDefNodes := findDefNodes(slideDG.0, slideDG.1, v); // find all def nodes of v in slideDG
 	
 	while (|vDefNodes| > 0)
@@ -55,7 +68,7 @@ method {:verify false}finalDefSlidesOfVariable(slideDG: SlideDG, cfg: CFG, v: Va
 
 				if (res)
 				{
-					Sv := Sv + {vDefNode};
+					slidesSv := slidesSv + {vDefNode};
 				}	
 		}
 	}
@@ -153,28 +166,69 @@ method {:verify false}findDefNodes(S: Statement, nodes: set<Slide>, v: Variable)
 
 
 
-predicate SlideDependence(m: Slide, n: Slide, S: Statement)
+
+
+
+
+
+
+datatype CFGPath = Empty | Extend(CFGPath, CFGNode)
+datatype Path<T> = Empty | Extend(Path<T>, T)
+
+predicate Reachable(from: CFGNode, to: CFGNode, S: set<CFGNode>)
+	//requires null !in S
+	//reads S
+{
+	exists via: CFGPath :: ReachableVia(from, via, to, S)
+}
+
+predicate ReachableVia(from: CFGNode, via: CFGPath, to: CFGNode, S: set<CFGNode>)
+	//requires null !in S
+	//reads S
+	decreases via
+{
+	match via
+	case Empty => from == to
+	case Extend(prefix, n) => n in S && to in Neighbours(n) && ReachableVia(from, prefix, n, S)
+}
+
+
+
+predicate SlideDependence(cfg: CFG, m: Slide, n: Slide, S: Statement)
 	// For n, exists n' in n.cfgNodes, this n' includes v (v is defined in m) and uses v.
+{
+	var v := m.1;
+	exists n' :: n' in n.2 && 
+	match n' {
+		case Node(l) => v in UsedVars(S, l) && ReachingDefinition(cfg, n', m.0, v)
+		case Entry => false
+		case Exit => false
+	}
+}
 
-	//exists n' :: n' in n.2 ==> 
-
-
-function ReachingDefinitions(cfg: CFG, cfgNode: CFGNode) : set<(CFGNode, Variable)>
+function ReachingDefinitions(cfg: CFG, cfgNode: CFGNode): (res: set<(CFGNode, Variable)>)
 	requires cfgNode in cfg.0
-	ensures forall pair :: pair in ReachingDefinitions(cfg, cfgNode) ==> DefInCFGNode(pair.0, pair.1) && SingleDefPath(cfg, cfgNode, pair.0, pair.1)
-
-
-function SlidesUseVariable(slideDG: SlideDG, slide: Slide, v: Variable) : set<Slide>
-	requires slide in slideDG.1
-	requires v == slide.1
-	ensures forall s :: s in SlidesUseVariable(slideDG, slide, v) ==> s in slideDG.1 && SlideUseVariable(s, v)
-
-
-predicate SlideUseVariable(slide: Slide, v: Variable)
-	// Check if slide uses v.
+	ensures forall pair :: pair in res <==> ReachingDefinition(cfg, cfgNode, pair.0, pair.1)
 
 predicate DefInCFGNode(cfgNode: CFGNode, v: Variable)
 	// Check if cfgNode defines v.
 
-predicate SingleDefPath(cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
+predicate NoDefPath(cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
 	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
+{
+	exists path: CFGPath :: ReachableVia(cfgNode', path, cfgNode, cfg.0) && (forall node :: node in Nodes(path) ==> !DefInCFGNode(node, v'))
+}
+
+predicate ReachingDefinition(cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
+	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
+{
+	DefInCFGNode(cfgNode', v') && exists path: CFGPath :: ReachableVia(cfgNode', path, cfgNode, cfg.0) && (forall node :: node in Nodes(path) ==> !DefInCFGNode(node, v'))
+}
+
+function Nodes(path: CFGPath): set<CFGNode>
+	decreases path
+{
+	match path
+	case Empty => {}
+	case Extend(prefix, n) => {n} + Nodes(prefix)
+}

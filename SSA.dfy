@@ -11,8 +11,10 @@ class VariablesSSA {
 
 	constructor () 
 		modifies this
-		requires ValidVsSSA(this)
+		//requires ValidVsSSA(this)
 		ensures ValidVsSSA(this)
+		ensures |instancesOf| == 0
+		ensures |variableOf| == 0
 	{
 		n := 1;
 	}

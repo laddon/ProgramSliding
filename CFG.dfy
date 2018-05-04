@@ -33,7 +33,9 @@ function method ComputeCFGEdges(S: Statement, N: set<CFGNode>) : set<CFGEdge>
 
 
 function method FindSubstatement(S: Statement, l: Label) : Statement
-	requires |l| >= 1
+	//requires |l| >= 1
+	requires Core(S)
+	ensures Core(FindSubstatement(S, l))
 {
 	match S {
 		case Assignment(LHS,RHS) => if |l| == 1 then S else Skip
@@ -60,4 +62,4 @@ function method DefinedVars(S: Statement, l: Label) : set<Variable>
 
 }*/
 
-function Neighbours(n: CFGNode) : set<CFGNode>
+function CFGNeighbours(n: CFGNode) : set<CFGNode>

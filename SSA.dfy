@@ -2,6 +2,9 @@ include "Definitions.dfy"
 include "Substitutions.dfy"
 include "Util.dfy"
 include "CorrectnessSSA.dfy"
+include "SlideDG.dfy"
+include "VarSlideDG.dfy"
+include "Slicing.dfy"
 
 class VariablesSSA {
 
@@ -1405,18 +1408,24 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 	assert Valid(S'');
 }
 
-method {:verify false}FromSSA(S': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)
+method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA, ghost V: set<Variable>, ghost S': Statement, ghost V': set<Variable>, ghost varSlideDG: VarSlideDG, ghost varSlideDG': VarSlideDG) returns (res: Statement)
+	requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)))	 // Implement VarSlideDGReachable
+	requires Substatement(SV', S') 
+		
 	requires ValidVsSSA(vsSSA)
-	requires Valid(S')
-	requires S'.Assignment? ==> forall i :: i in S'.LHS ==> vsSSA.existsVariable2(i)
+	requires Valid(SV')
+	requires SV'.Assignment? ==> forall i :: i in SV'.LHS ==> vsSSA.existsVariable2(i)
 	requires forall i :: i in XL1i ==> vsSSA.existsVariable2(i)
 	requires forall i :: i in XL2f ==> vsSSA.existsVariable2(i)
 	requires forall i :: i in XLs ==> vsSSA.existsVariable2(i)
 	decreases *
 	ensures ValidVsSSA(vsSSA)
-	ensures Valid(S)
+	ensures Valid(res)
+
+	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	//ensures Substatement(res, S) 
 {
-	S := MergeVars(S', XLs, X, XL1i, XL2f, Y, vsSSA);
+	res := MergeVars(SV', XLs, X, XL1i, XL2f, Y, vsSSA);
 }
 
 method {:verify false}MergeVars(S': Statement, XLs: set<Variable>, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, vsSSA: VariablesSSA) returns( S: Statement)

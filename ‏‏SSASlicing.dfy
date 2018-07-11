@@ -2,11 +2,12 @@ include "Definitions.dfy"
 include "Substitutions.dfy"
 include "Util.dfy"
 include "CorrectnessSSA.dfy"
-include "SSA.dfy"
 include "SlideDG.dfy"
+include "VarSlideDG.dfy"
+include "SSA.dfy"
 include "Slicing.dfy"
 
-method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
+/*method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
 	requires Valid(S)
 	requires Core(S)
 	decreases *
@@ -16,15 +17,55 @@ method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
 	var slideDG := ComputeSlideDG(S, pdgN, pdgE);
 
 	res := ComputeSSASlice(S, V, slideDG, cfg);
+}*/
+
+
+lemma IdenticalSlices(S: Statement, V: set<Variable>, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, slideDG: SlideDG, cfg: CFG, varSlideDG: VarSlideDG)
+	//  var varSlidesSV: set<VarSlide> := varSlidesOf(res, V); // from ComputeSSASlice
+	requires Valid(S)					// for statementOf
+	requires Core(S)					// for statementOf
+	requires slidesSV <= allSlides(S)	// for statementOf
+	requires VarSlideDGOf(varSlideDG, S)
+	requires SlideDGOf(slideDG, S)
+	requires forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(Sm, Sn, slideDG.1)))	 
+	requires forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))
+
+	ensures statementOf(slidesSV, S) == varStatementOf(varSlidesSV, S)
+{
+	
 }
 
-method ComputeSSASlice(S: Statement, V: set<Variable>, ghost slideDG: SlideDG, ghost cfg: CFG) returns (res: Statement)
+function SliceOf(S: Statement, V: set<Variable>): Statement
+{
+	var cfg := ComputeCFG(S);
+	var pdg := PDG(S, cfg);
+	var slideDG := SlideDG(S, pdg);
+	var slidesSV := set Sm | Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(Sm, Sn, slideDG.1));
+
+	statementOf(slidesSV, S)
+}
+
+method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
 	requires Valid(S)
 	requires Core(S)
 	decreases *
+	ensures SliceOf(S,V) == res 
+{
+	var varSlideDG := ComputeVarSlideDG(S);
+
+	res := ComputeSSASlice(S, V, varSlideDG);
+}
+
+//method ComputeSSASlice(S: Statement, V: set<Variable>, ghost slideDG: SlideDG, ghost cfg: CFG) returns (res: Statement)
+method ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
+	requires Valid(S)
+	requires Core(S)
+	requires VarSlideDGOf(varSlideDG, S)
+	decreases *
 	ensures Valid(res)
 	ensures Core(res)
-	ensures var slidesSV: set<Slide> := slidesOf(res, V); forall Sm :: Sm in slidesSV <==> Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(Sm, Sn, slideDG.1))	 
+	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	ensures Substatement(res, S)
 {
 	// To SSA
 	var vsSSA := new VariablesSSA(); 
@@ -41,20 +82,30 @@ method ComputeSSASlice(S: Statement, V: set<Variable>, ghost slideDG: SlideDG, g
 	assert forall v :: v in X ==> vsSSA.existsInstance(v);
 	var S' := ToSSA(S, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
 
-	// V' := foreach v in V find liveOnExit v
+	// Create varSlideDG for S'
+	ghost var varSlideDG' := ComputeVarSlideDG(S');
+	assert VarSlideDGOf(varSlideDG, S);
 
-	var V';
+	// V' := foreach v in V find liveOnExit v
+	var VSeq := setToSeq(V);
+	var instancesOfVSeq := vsSSA.getInstancesOfVaribleSeq(VSeq);
+	var V' := setOf(instancesOfVSeq) * liveOnExitX;
 
 	// Flow-Insensitive Slice
-	var S'FI := ComputeFISlice(S', V');
+	var SV' := ComputeFISlice(S', V', varSlideDG');
+	ghost var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V');
+	assert forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)));	 // Implement VarSlideDGReachable
 
 	// From SSA
 	var XL1i := liveOnEntryXSeq;
 	var XL2f := liveOnExitXSeq;
-	res := FromSSA(S'FI, X, XL1i, XL2f, Y, XLs, vsSSA);
+	res := FromSSA(SV', X, XL1i, XL2f, Y, XLs, vsSSA, V, S', V', varSlideDG, varSlideDG');
+
+
 }
 
-function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
+// Moved to Slidedg
+/*function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
 	reads *
 	requires Valid(S)
 	requires Core(S)
@@ -73,6 +124,22 @@ function slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>
 	case SeqComp(S1,S2) =>		slidesOf'(S1, V, l+[1], nodes) + slidesOf'(S2, V, l+[2], nodes)
 	case IF(B0,Sthen,Selse) =>	slidesOf'(Sthen, V, l+[1], nodes + {CFGNode.Node(l)}) + slidesOf'(Selse, V, l+[2], nodes + {CFGNode.Node(l)})
 	case DO(B,Sloop) =>			slidesOf'(Sloop, V, l+[1], nodes + {CFGNode.Node(l)})
+	}
+}*/
+
+function varStatementOf(slides: set<VarSlide>, S: Statement): Statement
+{
+//type VarSlide = (Variable, VarSlideTag)
+
+	if varSlides == {} then Skip
+	else
+	var varSlide :| varSlide in varSlides;
+	match varSlide.0 {
+	/*case Node(l) => 	var S' := statementOfSlide(varSlide, l, S);
+						var rest := statementOf(varSlides - {varSlide}, S);
+						mergeStatements(S', rest, S)
+	case Entry =>		Skip // ?
+	case Exit =>		Skip // ?*/
 	}
 }
 
@@ -452,9 +519,10 @@ function method {:verify false}ComputeSlidesDepRtc(S: Statement, V: set<Variable
 	if U <= V then V else ComputeSlidesDepRtc(S, V + U)
 }
 
-
-method {:verify false} ComputeFISlice(S: Statement, V: set<Variable>) returns (SV: Statement)
-	//ensures SV == FlowInsensitiveSlice(S,V)
+method {:verify false} ComputeFISlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (SV: Statement)
+	requires VarSlideDGOf(varSlideDG, S) // varSlideDG is of S
+	ensures var varSlidesSV: set<VarSlide> := varSlidesOf(SV, V); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	ensures Substatement(SV, S)
 {
 	var Vstar := ComputeSlidesDepRtc(S, V);
 

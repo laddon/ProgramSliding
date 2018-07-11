@@ -10,12 +10,12 @@ datatype CFGNode = Node(l:Label) | Entry | Exit
 type CFGEdge = (CFGNode, CFGNode)
 type CFG = (set<CFGNode>, set<CFGEdge>, map<CFGNode, set<CFGNode>>) // map from cfgNode to it's successors
 
-method ComputeCFG(S: Statement) returns (cfg: CFG)
+function method ComputeCFG(S: Statement): CFG
 {
 	var N := ComputeCFGNodes(S, []);
 	var E := ComputeCFGEdges(S, N);
 	var m : map<CFGNode, set<CFGNode>>; // TODO
-	cfg := (N, E, m);
+	(N, E, m)
 }
 
 function method ComputeCFGNodes(S: Statement, l: Label) : set<CFGNode>

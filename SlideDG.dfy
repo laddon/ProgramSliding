@@ -8,11 +8,13 @@ type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNod
 type Edge = (Slide, Slide, set<Variable>)
 type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 
-method ComputeSlideDG(S: Statement, pdgN: set<PDGNode>, pdgE: set<PDGEdge>) returns (slideDG: SlideDG)
+function SlideDG(S: Statement, cfg: CFG): SlideDG
+
+method ComputeSlideDG(S: Statement, cfgN: set<CFGNode>, cfgE: set<CFGEdge>) returns (slideDG: SlideDG)
 	requires Core(S)
 	ensures SlideDGOf(slideDG, S)
 {
-	var N := ComputeSlideDGNodes(S, pdgN);
+	var N := ComputeSlideDGNodes(S, cfgN);
 	var E := ComputeSlideDGEdges(S, N);
 	var m : map<Slide, set<Slide>>; // TODO
 
@@ -22,18 +24,20 @@ method ComputeSlideDG(S: Statement, pdgN: set<PDGNode>, pdgE: set<PDGEdge>) retu
 predicate SlideDGOf(slideDG: SlideDG, S: Statement)
 
 
-method ComputeSlideDGNodes(S: Statement, pdgN: set<PDGNode>) returns (slides: set<Slide>)
+// With CFG instead of PDG:
+method ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
 	requires Core(S)
 {
 	slides := {};
-	var copyPDGN := pdgN;
+	var copyCFGN := cfgN;
 
-	while (|copyPDGN| > 0)
+	while (|copyCFGN| > 0)
 	{
-		var pdgNode :| pdgNode in copyPDGN;
-		copyPDGN := copyPDGN - {pdgNode};
-		match pdgNode {
+		var cfgNode :| cfgNode in copyCFGN;
+		copyCFGN := copyCFGN - {cfgNode};
+		match cfgNode {
 			case Entry =>
+			case Exit =>
 			case Node(l) => 
 				var subS := FindSubstatement(S, l);
 				match subS {
@@ -47,26 +51,19 @@ method ComputeSlideDGNodes(S: Statement, pdgN: set<PDGNode>) returns (slides: se
 }
 
 function SlideDGNodes(S: Statement, cfgN: set<CFGNode>) : set<Slide>
-{
-	//set slide | slide
-}
 
-
-// With CFG instead of PDG:
-
-/*method ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
+/*method ComputeSlideDGNodes(S: Statement, pdgN: set<PDGNode>) returns (slides: set<Slide>)
 	requires Core(S)
 {
 	slides := {};
-	var copyCFGN := cfgN;
+	var copyPDGN := pdgN;
 
-	while (|copyCFGN| > 0)
+	while (|copyPDGN| > 0)
 	{
-		var cfgNode :| cfgNode in copyCFGN;
-		copyCFGN := copyCFGN - {cfgNode};
-		match cfgNode {
+		var pdgNode :| pdgNode in copyPDGN;
+		copyPDGN := copyPDGN - {pdgNode};
+		match pdgNode {
 			case Entry =>
-			case Exit =>
 			case Node(l) => 
 				var subS := FindSubstatement(S, l);
 				match subS {
@@ -111,7 +108,7 @@ method ComputeSlideDependence(Slides: set<Slide>, Sm: Slide) returns (slideDepSl
 method ComputeSlide(S: Statement, v: Variable, l: Label) returns (n: Slide)
 
 
-function SlideDGNeighbours(n: Slide) : set<Slide>
+function SlideDGNeighbours(slideDG: SlideDG, n: Slide) : set<Slide>
 
 function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
 	reads *

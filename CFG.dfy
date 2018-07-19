@@ -11,14 +11,15 @@ type CFGEdge = (CFGNode, CFGNode)
 type CFG = (set<CFGNode>, set<CFGEdge>, map<CFGNode, set<CFGNode>>) // map from cfgNode to it's successors
 
 function method ComputeCFG(S: Statement): CFG
-{
+/*{
 	var N := ComputeCFGNodes(S, []);
 	var E := ComputeCFGEdges(S, N);
-	var m : map<CFGNode, set<CFGNode>>; // TODO
+	var m := map<CFGNode, set<CFGNode>>; // TODO
 	(N, E, m)
-}
+}*/
 
 function method ComputeCFGNodes(S: Statement, l: Label) : set<CFGNode>
+	requires Core(S)
 {
 	match S {
 		case Assignment(LHS,RHS) => {CFGNode.Node(l)}

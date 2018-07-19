@@ -7,19 +7,6 @@ include "VarSlideDG.dfy"
 include "SSA.dfy"
 include "Slicing.dfy"
 
-/*method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
-	requires Valid(S)
-	requires Core(S)
-	decreases *
-{
-	var cfg := ComputeCFG(S);
-	var pdgN, pdgE := ComputePDG(S, cfg); // TODO: Change to PDG
-	var slideDG := ComputeSlideDG(S, pdgN, pdgE);
-
-	res := ComputeSSASlice(S, V, slideDG, cfg);
-}*/
-
-
 lemma IdenticalSlices(S: Statement, V: set<Variable>, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, slideDG: SlideDG, cfg: CFG, varSlideDG: VarSlideDG)
 	//  var varSlidesSV: set<VarSlide> := varSlidesOf(res, V); // from ComputeSSASlice
 	requires Valid(S)					// for statementOf
@@ -27,20 +14,16 @@ lemma IdenticalSlices(S: Statement, V: set<Variable>, slidesSV: set<Slide>, varS
 	requires slidesSV <= allSlides(S)	// for statementOf
 	requires VarSlideDGOf(varSlideDG, S)
 	requires SlideDGOf(slideDG, S)
-	requires forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(Sm, Sn, slideDG.1)))	 
-	requires forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))
-
+	requires forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
+	requires forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(/*slideDG,*/ Sm, Sn, varSlideDG.1)))
 	ensures statementOf(slidesSV, S) == varStatementOf(varSlidesSV, S)
-{
-	
-}
+
 
 function SliceOf(S: Statement, V: set<Variable>): Statement
 {
 	var cfg := ComputeCFG(S);
-	var pdg := PDG(S, cfg);
-	var slideDG := SlideDG(S, pdg);
-	var slidesSV := set Sm | Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(Sm, Sn, slideDG.1));
+	var slideDG := SlideDG(S, cfg);
+	var slidesSV := set Sm | Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
 
 	statementOf(slidesSV, S)
 }
@@ -56,7 +39,6 @@ method SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
 	res := ComputeSSASlice(S, V, varSlideDG);
 }
 
-//method ComputeSSASlice(S: Statement, V: set<Variable>, ghost slideDG: SlideDG, ghost cfg: CFG) returns (res: Statement)
 method ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
 	requires Valid(S)
 	requires Core(S)
@@ -64,8 +46,9 @@ method ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlid
 	decreases *
 	ensures Valid(res)
 	ensures Core(res)
-	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(slideDG, Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
 	ensures Substatement(res, S)
+	ensures SliceOf(S,V) == res 
 {
 	// To SSA
 	var vsSSA := new VariablesSSA(); 
@@ -94,54 +77,143 @@ method ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlid
 	// Flow-Insensitive Slice
 	var SV' := ComputeFISlice(S', V', varSlideDG');
 	ghost var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V');
-	assert forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)));	 // Implement VarSlideDGReachable
+	//assert forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, Sm, Sn, varSlideDG'.1)));	 // Implement VarSlideDGReachable
+	assert forall Sm :: Sm in varSlidesSV <==> (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, Sm, Sn, varSlideDG'.1));	 // Implement VarSlideDGReachable
+
+	// למה של אם ורק אם
+	/*
+	מיפוי הלוך ושוב בין לייבל ושם משתנה של השמה בודדת ב-אס לבין אינסטנס כלשהו באס טאג.
+	כיוון אחד:
+	נתחיל מסלייד באס-וי, יש לו משתנה ולייבל, ונמצא את האינסטנס שלו.
+	נטען שה
+	varslide שלו
+	נמצא בקבוצת הסליידים שיצרה את SV'.
+
+	הפוך:
+	קבוצת הסליידים שיצרה את SV'
+	נבחר סלייד אחד רגיל לא פי.
+	נמצא את המשתנה והלייבל שלו ב-אס.
+	ואז נמצא את הסלייד של ההשמה הזו ב-אס. האם הוא גם באס-וי.*/
+	
+	ghost var allSlides := slidesOf(S,def(S));
+	ghost var SV := SliceOf(S,V);
+	ghost var slidesSV := slidesOf(SV,V);
+
+	assert slidesSV <= allSlides;
+
+	forall slide | slide in slidesSV ensures VarSlideOf(SV, SV', slide) in varSlidesSV {
+		assert slide in slidesSV;
+		
+		var varSlide := VarSlideOf(SV, SV', slide);
+		var cfg := ComputeCFG(S);
+		var slideDG := SlideDG(S, cfg);
+
+		if slide in finalDefSlides(S, slideDG, cfg, V) // for example sum2
+		{
+			assert VarSlideOf(SV, SV', slide) in varSlidesSV by {
+				assert slide.0 in V;
+				assert exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, varSlide, Sn, varSlideDG'.1) by { // exists is sum4
+					assert slide.0 in V;
+				}
+			}
+		}
+		else
+		{
+			assert VarSlideOf(SV, SV', slide) in varSlidesSV by {
+				assert exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, varSlide, Sn, varSlideDG'.1) by {
+					L2();
+				}
+				L3();
+			}
+		}
+
+		assert VarSlideOf(SV, SV', slide) in varSlidesSV;
+	}
+	
+	assert forall slide :: slide in slidesSV <==> (var varSlide := VarSlideOf(SV, SV', slide); varSlide in varSlidesSV);
 
 	// From SSA
 	var XL1i := liveOnEntryXSeq;
 	var XL2f := liveOnExitXSeq;
 	res := FromSSA(SV', X, XL1i, XL2f, Y, XLs, vsSSA, V, S', V', varSlideDG, varSlideDG');
 
+	// Done. Now the proof:
+	// ensures SliceOf(S,V) == res :
+	/*לכל סלייד מהתוכנית המקורית נבדוק מה קרה לו בתהליך הזה של לעבור לSSA
+	ולחזור.
+	סלייד של השמה, או שהוא לא יהיה בסוף (כי ההשמה לא בסלייס), או שהוא כן יהיה בסוף ויהיה בדיוק אותו דבר (עבר שינויים בדרך וחזר לעצמו).
+	לכל סלייד של השמה בודדת ב-אס , או שהוא לא נמצא בסלייס (ונעלם משני הצדדים, רז וסלייס אוף), או שהוא כן ואז הם שווים.
+	לנסח משפט שאומר אם יש שתי תוכניות ואוסף הסליידים של כל אחת מהתוכניות, לכל סלייד בתוכנית ראשונה קיים סלייד בתוכנית השניה שזהה לו ולהיפך.
+	יש להעיף השמות עציות אחרי fromssa.
+
+
+	אולי צריך תוך כדי חישוב כל התהליך, משתנה גוסט , כל הסאבסטייטמנטים שצריך למחוק.*/
 
 }
 
-// Moved to Slidedg
-/*function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
-	reads *
-	requires Valid(S)
-	requires Core(S)
+lemma L2()
+	requires slide in slidesSV
+	requires slidesSV <= allSlides
+	requires slide !in finalDefSlides(S, slideDG, cfg, V)
+	requires varSlide == VarSlideOf(SV, SV', slide)
+	ensures exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, varSlide, Sn, varSlideDG'.1)
+
+lemma L3()
+	requires slide in slidesSV
+	requires slidesSV <= allSlides
+	requires slide !in finalDefSlides(S, slideDG, cfg, V)
+	requires varSlide == VarSlideOf(SV, SV', slide)
+	requires exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(slideDG, varSlide, Sn, varSlideDG'.1)
+	ensures VarSlideOf(SV, SV', slide) in varSlidesSV
+
+function VarSlideOf(S: Statement, S': Statement, slide: Slide): VarSlide
 {
-	slidesOf'(S, V, [], {})
+	match slide { 
+		case Node(l) => var varLabel := VarLabelOf(S, S', l); var i := InstanceOf(S', varLabel); (i, Regular)
+	}
 }
 
-function slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>) : set<Slide>
-	reads *
+function VarLabelOf(S: Statement, S': Statement, l: Label): Label
+	requires S' == ToSSA(S) //////
 	requires Valid(S)
+	requires Valid(S')
 	requires Core(S)
+	requires Core(S')
 {
 	match S {
-	case Skip => {}
-	case Assignment(LHS,RHS) => set v | v in V * setOf(LHS) :: (CFGNode.Node(l), v, nodes)
-	case SeqComp(S1,S2) =>		slidesOf'(S1, V, l+[1], nodes) + slidesOf'(S2, V, l+[2], nodes)
-	case IF(B0,Sthen,Selse) =>	slidesOf'(Sthen, V, l+[1], nodes + {CFGNode.Node(l)}) + slidesOf'(Selse, V, l+[2], nodes + {CFGNode.Node(l)})
-	case DO(B,Sloop) =>			slidesOf'(Sloop, V, l+[1], nodes + {CFGNode.Node(l)})
-	}
-}*/
+	case Skip =>				[]		
+	case Assignment(LHS,RHS) =>	match S' {
+								case Assignment(LHS',RHS') => []
+								}
+	case SeqComp(S1,S2) =>		match S' {
+								case SeqComp(S1',S2') => if l[0] == 1 then [1] + VarLabelOf(S1, S1', l[1..]) else [2] + VarLabelOf(S2, S2', l[1..])
+								}	
+	case IF(B0,Sthen,Selse) =>	match S' {							
+								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2] + VarLabelOf(Selse, Selse', l[1..])
+								}
+	case DO(B,Sloop) =>			match S' {
+								// S1' is the phi assignment and S2' is the DO
+								// we should add another [2] in order to go to the loop
+								case SeqComp(S1',S2') => match S2' {
+														 case DO(B',Sloop') => [2] + [1] + VarLabelOf(Sloop, Sloop', l[1..])
 
-function varStatementOf(slides: set<VarSlide>, S: Statement): Statement
-{
-//type VarSlide = (Variable, VarSlideTag)
-
-	if varSlides == {} then Skip
-	else
-	var varSlide :| varSlide in varSlides;
-	match varSlide.0 {
-	/*case Node(l) => 	var S' := statementOfSlide(varSlide, l, S);
-						var rest := statementOf(varSlides - {varSlide}, S);
-						mergeStatements(S', rest, S)
-	case Entry =>		Skip // ?
-	case Exit =>		Skip // ?*/
+								}
 	}
 }
+
+function InstanceOf(S': Statement, varLabel: Label): Variable
+	requires Valid(S')
+	requires Core(S')
+{
+	match S' {
+	case Skip => {}
+	case Assignment(LHS',RHS') => 
+	case SeqComp(S1',S2') =>		if l[0] == 1 then 
+	case IF(B0',Sthen',Selse') =>	
+	case DO(B',Sloop') =>			
+	}
+}
+
 
 function statementOf(slides: set<Slide>, S: Statement): Statement
 	reads *

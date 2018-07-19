@@ -18,13 +18,10 @@ method ComputePDG(S: Statement, cfg: CFG) returns (pdg: PDG)
 	var nodes, cfgToPdgNodeMap := ComputePDGNodes(S, cfg);
 	var edges := ComputePDGEdges(S, cfg, cfgToPdgNodeMap);
 
-	var pdg := (nodes, edges, cfgToPdgNodeMap);
+	pdg := (nodes, edges, cfgToPdgNodeMap);
 }
 
 function PDGEdges(S: Statement, cfg: CFG, cfgToPdgNodeMap: map<CFGNode, PDGNode>): set<PDGEdge>
-{
-	//set edge: PDGEdge | edge.0
-}
 
 
 method ComputePDGNodes(S: Statement, cfg: CFG) returns (N: set<PDGNode>, cfgToPdgNodeMap: map<CFGNode, PDGNode>)

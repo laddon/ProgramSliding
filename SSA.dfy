@@ -1409,7 +1409,7 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 }
 
 method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA, ghost V: set<Variable>, ghost S': Statement, ghost V': set<Variable>, ghost varSlideDG: VarSlideDG, ghost varSlideDG': VarSlideDG) returns (res: Statement)
-	requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)))	 // Implement VarSlideDGReachable
+	//requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)))	 // Implement VarSlideDGReachable
 	requires Substatement(SV', S') 
 		
 	requires ValidVsSSA(vsSSA)
@@ -1422,7 +1422,7 @@ method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variab
 	ensures ValidVsSSA(vsSSA)
 	ensures Valid(res)
 
-	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	//ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
 	//ensures Substatement(res, S) 
 {
 	res := MergeVars(SV', XLs, X, XL1i, XL2f, Y, vsSSA);

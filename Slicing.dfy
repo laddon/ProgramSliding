@@ -13,7 +13,7 @@ method {:verify false}Slice(S: Statement, V: set<Variable>) returns (slidesSV: s
 	slidesSV := ComputeSlice(S, V, slideDG, cfg);
 }
 
-method {:verify true}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
+method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
 	requires Core(S)
 	requires forall s :: s in slideDG.1 ==> s in slideDG.2
 	requires forall s1,s2 :: s1 in slideDG.2 && s2 in slideDG.2[s1]  ==> s2 in slideDG.1
@@ -225,53 +225,7 @@ method {:verify false}findDefNodes(S: Statement, nodes: set<Slide>, v: Variable)
 }
 
 
-
-
-
-
-
-
-
-
-
-datatype CFGPath = Empty | Extend(CFGPath, CFGNode)
-datatype SlideDGPath = Empty | Extend(SlideDGPath, Slide)
 //datatype Path<T> = Empty | Extend(Path<T>, T)
-
-predicate CFGReachable(from: CFGNode, to: CFGNode, S: set<CFGNode>)
-	//requires null !in S
-	//reads S
-{
-	exists via: CFGPath :: CFGReachableVia(from, via, to, S)
-}
-
-predicate CFGReachableVia(from: CFGNode, via: CFGPath, to: CFGNode, S: set<CFGNode>)
-	//requires null !in S
-	//reads S
-	decreases via
-{
-	match via
-	case Empty => from == to
-	case Extend(prefix, n) => n in S && to in CFGNeighbours(n) && CFGReachableVia(from, prefix, n, S)
-}
-
-predicate SlideDGReachable(slideDG: SlideDG, from: Slide, to: Slide, S: set<Slide>)
-	//requires null !in S
-	//reads S
-{
-	exists via: SlideDGPath :: SlideDGReachableVia(slideDG, from, via, to, S)
-}
-
-predicate SlideDGReachableVia(slideDG: SlideDG, from: Slide, via: SlideDGPath, to: Slide, S: set<Slide>)
-	//requires null !in S
-	//reads S
-	decreases via
-{
-	match via
-	case Empty => from == to
-	case Extend(prefix, n) => n in S && to in SlideDGNeighbours(slideDG, n) && SlideDGReachableVia(slideDG, from, prefix, n, S)
-}
-
 
 
 predicate SlideDependence(cfg: CFG, m: Slide, n: Slide, S: Statement)

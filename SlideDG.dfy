@@ -12,7 +12,7 @@ function SlideDG(S: Statement, cfg: CFG): SlideDG
 
 method ComputeSlideDG(S: Statement, cfgN: set<CFGNode>, cfgE: set<CFGEdge>) returns (slideDG: SlideDG)
 	requires Core(S)
-	ensures SlideDGOf(slideDG, S)
+	//ensures IsSlideDGOf(slideDG, S)
 {
 	var N := ComputeSlideDGNodes(S, cfgN);
 	var E := ComputeSlideDGEdges(S, N);
@@ -21,11 +21,13 @@ method ComputeSlideDG(S: Statement, cfgN: set<CFGNode>, cfgE: set<CFGEdge>) retu
 	slideDG := (S, N, m);
 }
 
-predicate SlideDGOf(slideDG: SlideDG, S: Statement)
+predicate IsSlideDGOf(slideDG: SlideDG, S: Statement)
+
+function SlideDGOf(S: Statement): SlideDG
 
 
 // With CFG instead of PDG:
-method ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
+method {:verify false}ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
 	requires Core(S)
 {
 	slides := {};
@@ -104,11 +106,7 @@ method ComputeSlideDGEdges(S: Statement, Slides: set<Slide>) returns (edges: set
 
 method ComputeSlideDependence(Slides: set<Slide>, Sm: Slide) returns (slideDepSlides: set<(Slide, set<Variable>)>)
 
-
 method ComputeSlide(S: Statement, v: Variable, l: Label) returns (n: Slide)
-
-
-function SlideDGNeighbours(slideDG: SlideDG, n: Slide) : set<Slide>
 
 function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
 	reads *
@@ -131,3 +129,24 @@ function slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>
 	case DO(B,Sloop) =>			slidesOf'(Sloop, V, l+[1], nodes + {CFGNode.Node(l)})
 	}
 }
+
+datatype SlideDGPath = Empty | Extend(SlideDGPath, Slide)
+
+predicate SlideDGReachable(slideDG: SlideDG, from: Slide, to: Slide, S: set<Slide>)
+	//requires null !in S
+	//reads S
+{
+	exists via: SlideDGPath :: SlideDGReachableVia(slideDG, from, via, to, S)
+}
+
+predicate SlideDGReachableVia(slideDG: SlideDG, from: Slide, via: SlideDGPath, to: Slide, S: set<Slide>)
+	//requires null !in S
+	//reads S
+	decreases via
+{
+	match via
+	case Empty => from == to
+	case Extend(prefix, n) => n in S && to in SlideDGNeighbours(slideDG, n) && SlideDGReachableVia(slideDG, from, prefix, n, S)
+}
+
+function SlideDGNeighbours(slideDG: SlideDG, n: Slide) : set<Slide>

@@ -36,4 +36,40 @@ method ComputeVarSlideDGEdges(S: Statement, Slides: set<SSASlide>) returns (edge
 
 function varSlidesOf(S: Statement, V: set<Variable>) : set<VarSlide>
 
-predicate VarSlideDGReachable(from: VarSlide, to: VarSlide, S: set<VarSlide>)
+datatype VarSlideDGPath = Empty | Extend(VarSlideDGPath, VarSlide)
+
+predicate VarSlideDGReachable(varSlideDG: VarSlideDG, from: VarSlide, to: VarSlide, S: set<VarSlide>)
+	//requires null !in S
+	//reads S
+{
+	exists via: VarSlideDGPath :: VarSlideDGReachableVia(varSlideDG, from, via, to, S)
+}
+
+predicate VarSlideDGReachableVia(varSlideDG: VarSlideDG, from: VarSlide, via: VarSlideDGPath, to: VarSlide, S: set<VarSlide>)
+	//requires null !in S
+	//reads S
+	decreases via
+{
+	match via
+	case Empty => from == to
+	case Extend(prefix, n) => n in S && to in VarSlideDGNeighbours(varSlideDG, n) && VarSlideDGReachableVia(varSlideDG, from, prefix, n, S)
+}
+
+function VarSlideDGNeighbours(varSlideDG: VarSlideDG, n: VarSlide) : set<VarSlide>
+
+predicate VarSlideDGReachablePhi(varSlideDG: VarSlideDG, from: VarSlide, to: VarSlide, S: set<VarSlide>)
+	//requires null !in S
+	//reads S
+{
+	exists via: VarSlideDGPath :: VarSlideDGReachableViaPhi(varSlideDG, from, via, to, S)
+}
+
+predicate VarSlideDGReachableViaPhi(varSlideDG: VarSlideDG, from: VarSlide, via: VarSlideDGPath, to: VarSlide, S: set<VarSlide>)
+	//requires null !in S
+	//reads S
+	decreases via
+{
+	match via
+	case Empty => from == to
+	case Extend(prefix, n) => n in S && to in VarSlideDGNeighbours(varSlideDG, n) && n.1 == Phi && VarSlideDGReachableVia(varSlideDG, from, prefix, n, S)
+}

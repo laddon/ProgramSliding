@@ -32,6 +32,7 @@ function method ComputeCFGNodes(S: Statement, l: Label) : set<CFGNode>
 
 function method ComputeCFGEdges(S: Statement, N: set<CFGNode>) : set<CFGEdge>
 
+function CFGOf(S: Statement): CFG
 
 function method FindSubstatement(S: Statement, l: Label) : Statement
 	//requires |l| >= 1
@@ -63,4 +64,23 @@ function method DefinedVars(S: Statement, l: Label) : set<Variable>
 
 }*/
 
+datatype CFGPath = Empty | Extend(CFGPath, CFGNode)
+
 function CFGNeighbours(n: CFGNode) : set<CFGNode>
+
+predicate CFGReachable(from: CFGNode, to: CFGNode, S: set<CFGNode>)
+	//requires null !in S
+	//reads S
+{
+	exists via: CFGPath :: CFGReachableVia(from, via, to, S)
+}
+
+predicate CFGReachableVia(from: CFGNode, via: CFGPath, to: CFGNode, S: set<CFGNode>)
+	//requires null !in S
+	//reads S
+	decreases via
+{
+	match via
+	case Empty => from == to
+	case Extend(prefix, n) => n in S && to in CFGNeighbours(n) && CFGReachableVia(from, prefix, n, S)
+}

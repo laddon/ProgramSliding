@@ -7,11 +7,45 @@ datatype Statement = Assignment(LHS: seq<Variable>, RHS: seq<Expression>) | Skip
 		LocalDeclaration(L: seq<Variable>, S0: Statement) | Live(L: seq<Variable>, S0: Statement) | Assert(B: BooleanExpression)
 type Variable = string
 datatype Value = Int(i: int) | Bool(b: bool)
-type Expression = (State -> Value, set<Variable>)
-type BooleanExpression = (State -> bool, set<Variable>) 
+type Expression = (State -> Value, set<Variable>)//, string)
+type BooleanExpression = (State -> bool, set<Variable>)//, string) 
 type State = map<Variable, Value>
 type Predicate = (State -> bool, set<Variable>)
 
+predicate SameExpressions(A: Expression, B: Expression)
+/*{
+	A.2 == B.2
+}*/
+
+predicate SameBooleanExpressions(A: BooleanExpression, B: BooleanExpression)
+/*{
+	A.2 == B.2
+}*/
+
+predicate IsAssignment(S: Statement)
+{
+	exists LHS,RHS :: S == Assignment(LHS,RHS)
+}
+
+predicate IsIF(S: Statement)
+{
+	exists B,Then,Else :: S == IF(B, Then, Else)
+}
+
+predicate IsDO(S: Statement)
+{
+	exists B,Loop :: S == DO(B, Loop)
+}
+
+predicate IsSeqComp(S: Statement)
+{
+	exists S1,S2 :: S == SeqComp(S1, S2)
+}
+
+predicate IsSkip(S: Statement)
+{
+	S == Skip
+}
 
 //============================================================
 //					*** Validation ***
@@ -51,9 +85,9 @@ predicate Core(stmt: Statement)
 	}
 }
 
-function ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>): bool 
+predicate ValidAssignment(LHS:  seq<Variable>, RHS: seq<Expression>)
 {
-	if (|LHS| != |RHS|) then false else true 
+	|LHS| == |RHS| && |setOf(LHS)| == |LHS|
 }
 
 /*
@@ -342,7 +376,6 @@ function method {:verify true}seqVarToSeqExpr(seqvars: seq<Variable>): (res:seq<
 	if seqvars == [] then []
 	else 
 		([((s:State)requires(seqvars[0] in s)=>s[seqvars[0]], {seqvars[0]})] + seqVarToSeqExpr(seqvars[1..]))
-	
 }
 
 function method {:verify false} fSetToSeq(s : set<Variable>) : (res: seq<Variable>)

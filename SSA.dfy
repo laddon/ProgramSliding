@@ -775,7 +775,7 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 			forall s :: s in slidesS ==> (var s' := VarSlideOf(S, S', slide); s' in varSlidesS'
 			&& LabelCorrespondence(assert exists l :: s.0 == CFGNode.Node(l); match s.0 { case Node(l) => l }), VarLabelOfSlide(S, S', s))*/
 
-	ensures MergedVars1(S', S, XLs from vsSSA - all instances, X)
+	//ensures MergedVars1(S', S, XLs from vsSSA - all instances, X)
 {
 	match S {
 		case Assignment(LHS,RHS) => S' := Skip;//AssignmentToSSA(LHS, RHS, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
@@ -808,7 +808,7 @@ function method {:verify false}RenameToSSA(S: Statement, num: int): (Statement,i
 function method {:verify false}RenameBoolExpToSSA(B: BooleanExpression, num: int): (B': BooleanExpression)
 
 function method {:verify false}RenameAssignmentToSSA(LHS: seq<Variable>, RHS: seq<Expression>, num: int): (Statement,int)
-{
+/*{
 	if LHS == [] then (Skip,num) else
 	{
 		var numL := num;
@@ -823,27 +823,6 @@ function method {:verify false}RenameAssignmentToSSA(LHS: seq<Variable>, RHS: se
 
 		match S'.0 {
 		case Assignment(LHS',RHS') => (Assignment([vL]+LHS',[vR]+RHS'), S'.1)
-		}
-	}
-}
-// rename and remove self assignments
-//x1,y2,z3 = 1,2,z4   x,y,z,=1,2,z    x,y=1,2  
-/*{
-	if LHS == [] then S := Assignment([], []) else
-	{
-		var lhsX := instanceToVariable(LHS[0], XLs, X);
-		var rhsX := instanceToVariable(RHS[0], XLs, X);
-		var S' := RenameAssignment(LHS[1..], RHS[1..], XLs, X);
-
-		if lhsX == rhsX then
-		{
-			S := S';
-		}
-		else
-		{
-			match S' {
-				case Assignment(LHS',RHS') => S:= Assignment([lhsX] + LHS', [rhsX] + RHS');
-			}
 		}
 	}
 }*/
@@ -1452,12 +1431,13 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 	assert forall i :: i in liveOnExitX' ==> vsSSA.existsVariable2(i);
 	var S' := ToSSA(S, X, setOf(liveOnEntryX'), setOf(liveOnExitX'), Y, XLs', vsSSA);
 
-	var tempDO := DO(B', S');
+	//var tempDO := DO(B', S');
 	var tempAssignment := Assignment(XL2Seq + XL4fSeq, seqVarToSeqExpr(XL2bSeq + XL4bSeq));
-	assert Valid(tempDO);
-	assert Valid(tempAssignment);
-	var DO' := SeqComp(tempDO, tempAssignment);
+	var DO' := DO(B', SeqComp(S', tempAssignment));
+	
 	assert Valid(DO');
+	assert Valid(tempAssignment);
+	//var DO' := SeqComp(tempDO, tempAssignment);
 	//var DO' := SeqComp(DO(B', S'), Assignment(XL2Seq + XL4fSeq, XL2bSeq + XL4bSeq));
 	tempAssignment := Assignment(XL2Seq + XL4fSeq, seqVarToSeqExpr(XL2iSeq + XL4iSeq));
 	assert Valid(tempAssignment);
@@ -1466,7 +1446,7 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 	assert Valid(S'');
 }
 
-method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA, ghost V: set<Variable>, ghost S': Statement, ghost V': set<Variable>, ghost varSlideDG: VarSlideDG, ghost varSlideDG': VarSlideDG) returns (res: Statement)
+method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA, ghost V: set<Variable>, ghost S': Statement, ghost V': set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
 	//requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)))	 // Implement VarSlideDGReachable
 	///////////////requires Substatement(SV', S') 
 		
@@ -1486,9 +1466,9 @@ method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variab
 {
 	var XLsSeq := XLsToSeq(X, XLs, vsSSA);
 	res := MergeVars1(SV', XLsSeq, X, XL1i, XL2f, Y, vsSSA);
-	assert Substatement(res, S) by {
-		L20(S, S', SV', res, XLs, [], []);
-	}
+	/*assert Substatement(res, S) by {
+		L20(S, S', SV', res, /*XLsToSSA*/, [], []);
+	}*/
 }
 
 function method {:verify false}XLsToSeq(X: seq<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA): seq<set<Variable>>
@@ -1638,7 +1618,9 @@ predicate {:verify false}MergedVars(S: Statement, T: Statement, XLs: seq<set<Var
 	T == Rename(S, XLs, X)
 }
 
-function method {:verify false}Rename(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>): (S': Statement)
+function method {:verify true}Rename(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>): (S': Statement)
+	requires Core(S) && Valid(S)
+	ensures Core(S') && Valid(S')
 {
 	match S {
 		case Assignment(LHS,RHS) => RenameAssignment(LHS, RHS, XLs, X)
@@ -1650,7 +1632,8 @@ function method {:verify false}Rename(S: Statement, XLs: seq<set<Variable>>, X: 
 	}
 }
 
-function method {:verify false}RenameAssignment(LHS: seq<Variable>, RHS: seq<Expression>, XLs: seq<set<Variable>>, X: seq<Variable>): (S: Statement)
+function method {:verify true}RenameAssignment(LHS: seq<Variable>, RHS: seq<Expression>, XLs: seq<set<Variable>>, X: seq<Variable>): (S: Statement)
+	requires forall v1,v2 :: v1 in LHS && v2 in LHS && v1 != v2 ==> instanceToVariable(v1, XLs, X) != instanceToVariable(v2, XLs, X)
 // rename and remove self assignments
 //x1,y2,z3 = 1,2,z4   x,y,z,=1,2,z    x,y=1,2  
 /*{
@@ -1673,7 +1656,7 @@ function method {:verify false}RenameAssignment(LHS: seq<Variable>, RHS: seq<Exp
 	}
 }*/
 
-function method {:verify false}instanceToVariable(i: Variable, XLs: seq<set<Variable>>, X: seq<Variable>): Variable
+function {:verify true}instanceToVariable(i: Variable, XLs: seq<set<Variable>>, X: seq<Variable>): Variable
 {
 	if i in XLs[0] then X[0]
 	else
@@ -1682,7 +1665,7 @@ function method {:verify false}instanceToVariable(i: Variable, XLs: seq<set<Vari
 
 function method {:verify false}RenameBoolExp(B: BooleanExpression, XLs: seq<set<Variable>>, X: seq<Variable>): (B': BooleanExpression)
 
-function method {:verify false}RemoveSelfAssignments(S: Statement): (S': Statement)
+function method {:verify false}RemoveSelfAssignments(S: Statement): (S': Statement) // CHECK!
 	ensures NoSelfAssignments(S')
 {
 	if SelfAssignmentsOnly(S) then Skip // convert to empty assignment NOT skip ?

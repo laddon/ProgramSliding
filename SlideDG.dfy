@@ -8,13 +8,12 @@ type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNod
 type Edge = (Slide, Slide, set<Variable>)
 type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 
-function SlideDG(S: Statement, cfg: CFG): SlideDG
-
-method ComputeSlideDG(S: Statement, cfgN: set<CFGNode>, cfgE: set<CFGEdge>) returns (slideDG: SlideDG)
+method ComputeSlideDG(S: Statement, cfg: CFG) returns (slideDG: SlideDG)
 	requires Core(S)
+	//ensures SlideDGOf(S, cfg) == ComputeSlideDG(S, cfg)
 	//ensures IsSlideDGOf(slideDG, S)
 {
-	var N := ComputeSlideDGNodes(S, cfgN);
+	var N := ComputeSlideDGNodes(S, cfg.0);
 	var E := ComputeSlideDGEdges(S, N);
 	var m : map<Slide, set<Slide>>; // TODO
 
@@ -23,7 +22,7 @@ method ComputeSlideDG(S: Statement, cfgN: set<CFGNode>, cfgE: set<CFGEdge>) retu
 
 predicate IsSlideDGOf(slideDG: SlideDG, S: Statement)
 
-function SlideDGOf(S: Statement): SlideDG
+function SlideDGOf(S: Statement, cfg: CFG): SlideDG
 
 
 // With CFG instead of PDG:

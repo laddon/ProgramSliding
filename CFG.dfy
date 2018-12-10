@@ -11,6 +11,7 @@ type CFGEdge = (CFGNode, CFGNode)
 type CFG = (set<CFGNode>, set<CFGEdge>, map<CFGNode, set<CFGNode>>) // map from cfgNode to it's successors
 
 function method ComputeCFG(S: Statement): CFG
+	ensures CFGOf(S) == ComputeCFG(S)
 /*{
 	var N := ComputeCFGNodes(S, []);
 	var E := ComputeCFGEdges(S, N);

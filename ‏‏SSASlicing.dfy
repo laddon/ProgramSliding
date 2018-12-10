@@ -7,53 +7,40 @@ include "VarSlideDG.dfy"
 include "SSA.dfy"
 include "Slicing.dfy"
 
-/*lemma {:verify false}IdenticalSlices(S: Statement, V: set<Variable>, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, slideDG: SlideDG, cfg: CFG, varSlideDG: VarSlideDG)
-	//  var varSlidesSV: set<VarSlide> := varSlidesOf(res, V); // from ComputeSSASlice
-	requires Valid(S)					// for statementOf
-	requires Core(S)					// for statementOf
-	requires slidesSV <= allSlides(S)	// for statementOf
-	requires VarSlideDGOf(varSlideDG, S)
-	requires SlideDGOf(slideDG, S)
-	requires forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
-	requires forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(/*slideDG,*/ Sm, Sn, varSlideDG.1)))
-	ensures statementOf(slidesSV, S) == varStatementOf(varSlidesSV, S)
-*/
-
-
-
-function {:verify false}SliceOf(S: Statement, V: set<Variable>): Statement
-	ensures Valid(SliceOf(S,V)) && Core(SliceOf(S,V))
+function {:verify true}SliceOf(S: Statement, V: set<Variable>): (set<Slide>, Statement)
+	reads *
+	requires Valid(S) && Core(S)
+	ensures forall Sm :: Sm in SliceOf(S,V).0 <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1))
+	ensures Valid(SliceOf(S,V).1) && Core(SliceOf(S,V).1)
 {
 	var cfg := ComputeCFG(S);
-	var slideDG := SlideDG(S, cfg);
-	var slidesSV := set Sm | Sm in slidesOf(S,def(S)) && (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
+	assert cfg == CFGOf(S);
+	var slideDG := SlideDGOf(S, cfg);
+	var slidesSV := set Sm | (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
 
-	statementOf(slidesSV, S)
+	(slidesSV, statementOf(slidesSV, S))
 }
 
-method {:verify false}SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
+method {:verify true}SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
 	requires Valid(S)
 	requires Core(S)
 	decreases *
-	ensures SliceOf(S,V) == res 
+	ensures SliceOf(S,V).1 == res 
 {
 	var varSlideDG := ComputeVarSlideDG(S); // not needed
 
 	res := ComputeSSASlice(S, V, varSlideDG);
 }
 
-method {:verify false}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
-	requires NoSelfAssignments(S) // requires there are no self assignments TODO
-	requires Valid(S)
-	requires Core(S)
+method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
+	//requires NoSelfAssignments(S) // requires there are no self assignments TODO
+	requires Valid(S) && Core(S)
 	requires VarSlideDGOf(varSlideDG, S)
 	decreases *
-	ensures Valid(res)
-	ensures Core(res)
+	ensures Valid(res) && Core(res)
 	ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(varSlideDG, Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
-	ensures Substatement(res, S)
 	//ensures var SV := SliceOf(S,V); MergeVars(SV) == res 
-	//ensures SliceOf(S,V) == res
+	ensures SliceOf(S,V).1 == res
 {
 	// To SSA
 	var vsSSA := new VariablesSSA(); 
@@ -65,92 +52,154 @@ method {:verify false}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varS
 	var liveOnExitXSeq := freshInit(X, glob(S) + liveOnEntryX, vsSSA);
 	var liveOnExitX := setOf(liveOnExitXSeq);
 	var XLs := liveOnEntryX + liveOnExitX;
-	assert forall i :: i in liveOnEntryX ==> vsSSA.existsVariable2(i);
-	assert forall i :: i in liveOnExitX ==> vsSSA.existsVariable2(i);
-	assert forall v :: v in X ==> vsSSA.existsInstance(v);
+	assume forall i :: i in liveOnEntryX ==> vsSSA.existsVariable2(i);
+	assume forall i :: i in liveOnExitX ==> vsSSA.existsVariable2(i);
+	assume forall v :: v in X ==> vsSSA.existsInstance(v);
 	var S' := ToSSA(S, X, liveOnEntryX, liveOnExitX, Y, XLs, vsSSA);
+	assert Valid(S) && Core(S);
 
-	// Create varSlideDG' for S'
-	ghost var varSlideDG' := ComputeVarSlideDG(S');
-	assert VarSlideDGOf(varSlideDG', S');
+	// Create varSlideDGS' for S'
+	ghost var varSlideDGS' := ComputeVarSlideDG(S');
+	assert VarSlideDGOf(varSlideDGS', S');
 
 	// V' := foreach v in V find liveOnExit v
 	var VSeq := setToSeq(V);
-	assert forall v :: v in VSeq ==> vsSSA.existsInstance(v);
+	assume forall v :: v in VSeq ==> vsSSA.existsInstance(v);
 	var instancesOfVSeq := vsSSA.getInstancesOfVaribleSeq(VSeq);
 	var V' := setOf(instancesOfVSeq) * liveOnExitX;
+	assert Valid(S) && Core(S);
 
 	// Flow-Insensitive Slice
-	var SV' := ComputeFISlice(S', V', varSlideDG');
+	var SV' := ComputeFISlice(S', V', varSlideDGS');
 	ghost var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V');
-	assert forall Sm :: Sm in varSlidesSV <==> (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDG', Sm, Sn, varSlideDG'.1));	 // Implement VarSlideDGReachable
+	//assert forall Sm :: Sm in varSlidesSV <==> (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', Sm, Sn, varSlideDGS'.1));	 // Implement VarSlideDGReachable
+	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
 	
+	assert Valid(S) && Core(S);
 	ghost var allSlides := slidesOf(S,def(S));
-	ghost var SV := SliceOf(S,V);
+	//ghost var SV := SliceOf(S,V);
+	ghost var SliceOfSV := SliceOf(S,V);
+	ghost var SV := SliceOfSV.1;
 	assert Valid(SV) && Core(SV); 
-	ghost var slidesSV := slidesOf(SV,V);
-	assert slidesSV <= allSlides;
-
-	assert forall slide :: slide in SlideDGOf(S).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV) by {
-		// p ==> q:	
-		L1(setOf(X), S, SV, SV', slidesSV, varSlidesSV, vsSSA, V, V', varSlideDG/******/);
-		assert forall slide :: slide in slidesSV ==> VarSlideOf(SV, SV', slide) in varSlidesSV;
-
-		// ^p ==> ^q:
-		L2(S, SV, SV', slidesSV, varSlidesSV, V, V', varSlideDG/******/, vsSSA);
-		//assert forall slide :: slide !in slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV;
-		assert forall slide :: slide in SlideDGOf(S).1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV;
-	}
-
+	//ghost var slidesSV := slidesOf(SV,V);
+	ghost var slidesSV := SliceOfSV.0;
+	assert forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1));
+	assume slidesSV <= allSlides;
+	
+	LemmaSlidesSVToVarSlidesSV(S, SV, SV', slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA);
+	assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV);
+	
 	// From SSA
 	var XL1i := liveOnEntryXSeq;
 	var XL2f := liveOnExitXSeq;
-	res := FromSSA(SV', X, XL1i, XL2f, Y, XLs, vsSSA, V, S', V', varSlideDG, varSlideDG');
-	assert Substatement(res, S); // TODO!!!
-
-	// להוכיח שקילות בין הסליידים של res
-	// לבין varSlidesSV
-	// בדומה לשורה 94.
-	// וזה חובה להוכחת L9
-
-	//assert forall varSlide :: varSlide in varSlidesSV <==> SlideOf(res, SV', varSlide) in slidesOf(res);
-
-
-	/*
-		;
-	105    ;
-		106  107
-		
-	(105;(106;107))
-
-	        ;
-		 ;    107
-	 105   106
+	res := FromSSA(SV', X, XL1i, XL2f, Y, XLs, vsSSA, V, S', V', varSlideDGS');
+	assert Substatement(res,S);
 	
-	 ((105;106);107)
-	 */
+	//assert forall U: set<Variable> :: slidesOf(res, U) <= slidesOf(S, U) <= slidesOf(S, def(S));
 
 
+	assert Substatement(res, S);
+	assert Substatement(SliceOfSV.1, S);
+	
+	assume def(res) <= def(S);// by { assert Core(S) && Substatement(res,S); }
+	assert allSlidesOf(res) == slidesOf(res, def(S));
+	assume def(SliceOfSV.1) <= def(S);// by { assert Core(S) && Substatement(SliceOfSV,S); }
+	assert allSlidesOf(SliceOfSV.1) == slidesOf(SliceOfSV.1, def(S));
 
-	// Done. Now the proof:
-	// ensures SliceOf(S,V) == res :
+	assert slidesOf(res, def(S)) <= slidesOf(S, def(S));
+	assert slidesSV == slidesOf(SliceOfSV.1, def(S)) == SliceOfSV.0 <= slidesOf(S, def(S));
 
-	// Option 1:
-	// forall slide in slidesSV find VarSlideOf, then find statementOf(varSlide), then run FromSSA and get the original slide
-	// (L8)
-	// a*(b+c) = a*b+a*c
-	// mergeStatements
+	assert slidesOf(res, def(S)) == slidesOf(SliceOfSV.1, def(S)) by {
+		forall slide | slide in slidesOf(S, def(S)) ensures slide in slidesOf(res, def(S)) <==> slide in slidesOf(SliceOfSV.1, def(S)) {
+			assert VarSlideOf(SV, SV', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)) by {
+				assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV);
+				assert VarSlideOf(SV, SV', slide) in varSlidesSV ==> slide in slidesOf(res, def(S)) by {
+					assert slide in slidesOf(S, def(S));
+					assert slide in slidesSV by { assert slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV; }
+					assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
+					var vSlide := VarSlideOf(SV, SV', slide);
+					assert vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1);
+					
+					var v := slide.1;
+					match slide.0 {
+					case Node(l) => 
+						var vLabel := VarLabelOf(SV, SV', l);
+						assert ValidLabel(l, res) && IsAssignment(slipOf(res, l)) && v in def(slipOf(res, l)) by {
+							assert ValidLabel(l, res) by {
+								assert Substatement(res, S);
+								assert ValidLabel(l, S) by { assert slide in slidesOf(S, def(S)); }
 
+							}
+							assert IsAssignment(slipOf(res, l)) by {
+								assert IsAssignment(slipOf(SV', vLabel));
+								assert MatchingSlipsFromSSA(SV', vLabel, res, l);
+							}
+							assert v in def(slipOf(res, l)) by {
+								assert Substatement(res, S);
+								// vLabel of Regular Assignment (vSlide), v' in LHS of vSlide <==> Rename(v') in def(slipOf(res, l))
+								// vSlide.1 == Regular && v' in def(slipOf(SV', vLabel) <==> Rename(v') in def(slipOf(res, l))
+								// call lemma for:
+								// forall l,l',v,v' :: ValidLabel(l, S) && IsAssignment(slipOf(S, l)) && l' corresponding to l (function) && 
+								//		ValidLabel(l', SV') && IsAssignment(slipOf(SV', l')) && v == Rename(v') ==>
+								//		ValidLabel(l, res) && IsAssignment(slipOf(res, l)) &&
+								//		(v in def(slipOf(res, l)) <==> v' in def(slipOf(SV', l')))
+								//
+							}
+						}
+					}
+				}
 
-	// Option 2:
-	L9(S, V, res, SV, SV', slidesSV, varSlidesSV, varSlideDG, V'); // ensures allLabelsOf(SliceOf(S,V)) == allLabelsOf(res)
-	// call L10 on different slides
-	forall l | l in allLabelsOf(SliceOf(S,V)) /*&& l represents multiple assignment*/ ensures slipOf(SliceOf(S,V), l) == slipOf(res, l) {
-		//////L10(SliceOf(S,V), res ,l); // ensures slipOf(SliceOf(S,V), l) == slipOf(res, l)
+				assert VarSlideOf(SV, SV', slide) !in varSlidesSV ==> slide !in slidesOf(res, def(S)) by {
+					assert slide in slidesOf(S, def(S));
+					assert slide !in slidesSV by { assert slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV; }
+					var vSlide := VarSlideOf(SV, SV', slide);
+					assert !(vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1)) by {
+						assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
+						assert vSlide !in varSlidesSV;
+					}
+					
+					assert slide !in slidesOf(res, def(S)) by {
+						calc {
+							slide in slidesOf(res, def(S));
+						==> { assert slidesOf(res, def(S)) <= slidesOf(S, def(S)); }
+							slide in slidesOf(S, def(S));
+						==>
+							
+						==>
+							slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, slideDG.1);
+						==> { assert slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV; }
+							vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1);
+						==> { assert vSlide !in varSlidesSV; }
+							false;
+						}
+					}
+				} 
+			}
+		}
 	}
+
 	
-	//assert allLabelsOf(SliceOf(S,V)) == allLabelsOf(res) && forall l: Label :: l in allLabelsOf(SliceOf(S,V)) ==> slipOf(SliceOf(S,V), l) == slipOf(res, l);
+	
+	// Done. Now the proof:
+	// ensures SliceOfSV == res :
+	assume forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1));
+	assume forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
+	LemmaSlidesSVToVarSlidesSV(S, SV, SV', slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA);
+	assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (VarSlideOf(SV, SV', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)));
+	L9(S, V, res, SV, SV', slidesSV, varSlidesSV, varSlideDGS', V'); // ensures allSlidesOf(SliceOfSV) == allSlidesOf(res)
+	
+	assert allSlidesOf(res) == allSlidesOf(SliceOfSV.1);
+	LemmaIdenticalSlices(S, SliceOfSV.1, res);
 }
+
+lemma LemmaIdenticalSlices(S: Statement, S1: Statement, S2: Statement)
+	requires Valid(S) && Valid(S1) && Valid(S2)
+	requires Core(S) && Core(S1) && Core(S2)
+	//requires Substatement(S1, S)
+	//requires Substatement(S2, S)
+	requires allSlidesOf(S1) == allSlidesOf(S2) // check multiple assignments
+	ensures S1 == S2
+
 
 /*lemma {:verify false}L10(SliceOfSV: Statement, res: Statement, l: Label/*, SV: Statement, SV': Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>*/)
 	requires allLabelsOf(SliceOfSV) == allLabelsOf(res)
@@ -288,22 +337,27 @@ function {:verify false}allLabelsOfStatement(S: Statement, l: Label): set<Label>
 }
 
 lemma {:verify false}L9(S: Statement, V: set<Variable>, res: Statement, SV: Statement, SV': Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDG: VarSlideDG, V': set<Variable>)
-	requires NoSelfAssignments(S)
+	//requires NoSelfAssignments(S)
 	requires Valid(S) && Core(S)
 	requires Valid(SV) && Core(SV)
 	requires Valid(SV') && Core(SV')
-	requires var slideDG := SlideDGOf(S); forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, CFGOf(S), V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, varSlideDG.1));
-	requires forall slide :: slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1))
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, varSlideDG.1))
+	requires forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV)
+	requires forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (VarSlideOf(SV, SV', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)))
+	ensures allSlidesOf(SliceOf(S,V).1) == allSlidesOf(res)
 
-	ensures allLabelsOf(SliceOf(S,V)) == allLabelsOf(res)
 
-
-function {:verify false}slipOf(S: Statement, l: Label): Statement
-	requires ValidLabel(l, S) // l matching S
+function {:verify true}slipOf(S: Statement, l: Label): Statement
+	reads *
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l, S)
 	ensures Valid(slipOf(S, l)) && Core(slipOf(S, l))
+	ensures l == [] ==> slipOf(S, l) == S
+	ensures l != [] ==> slipOf(S, l) < S
+	decreases l
 {
-	if l == [] then S
+	if l == [] then  S
 	else
 		match S {
 			case Assignment(LHS,RHS) => Skip//assert false - Doesn't work!!!
@@ -311,7 +365,7 @@ function {:verify false}slipOf(S: Statement, l: Label): Statement
 			case IF(B0,Sthen,Selse) =>	if l[0] == 1 then slipOf(Sthen, l[1..]) else slipOf(Selse, l[1..])
 			case DO(B,S1) =>			slipOf(S1, l[1..])
 			case Skip =>				Skip//assert false - Doesn't work!!!
-		}	
+		}
 }
 
 
@@ -319,19 +373,42 @@ function {:verify false}slipOf(S: Statement, l: Label): Statement
 	ensures forall slide :: slide in slidesSV ==> var varSlide := VarSlideOf(SV, SV', slide); var s' := varStatementOf({varSlide}, SV'); slideOf(FromSSA(s')) == slide
 */
 
+lemma LemmaSlidesSVToVarSlidesSV(S: Statement, SV: Statement, SV': Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, X: seq<Variable>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, vsSSA: VariablesSSA)
+	requires Valid(S) && Core(S)
+	requires Valid(SV) && Core(SV)
+	requires Valid(SV') && Core(SV')
+	requires ValidVsSSA(vsSSA)
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1))
+	ensures forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV)
+{
+	assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(SV, SV', slide) in varSlidesSV) by {
+		// p ==> q:	
+		L1(setOf(X), S, SV, SV', slidesSV, varSlidesSV, vsSSA, V, V', varSlideDGS');
+		assert forall slide :: slide in slidesSV ==> VarSlideOf(SV, SV', slide) in varSlidesSV;
+		
+		assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
+		
+		// ^p ==> ^q:
+		L2(S, SV, SV', slidesSV, varSlidesSV, V, V', varSlideDGS', vsSSA);
+		assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV;
+	}
+}
+
 lemma {:verify false}L1(X: set<Variable>, S: Statement, SV: Statement, SV': Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, vsSSA: VariablesSSA, V: set<Variable>, V': set<Variable>, varSlideDG: VarSlideDG)
 	requires Valid(S) && Core(S)
 	requires Valid(SV) && Core(SV)
 	requires Valid(SV') && Core(SV')
 	requires ValidVsSSA(vsSSA)
 	ensures forall slide :: slide in slidesSV ==> VarSlideOf(SV, SV', slide) in varSlidesSV
+	//ensures varSlidesSV == old(varSlidesSV)
 {
 	forall slide | slide in slidesSV ensures VarSlideOf(SV, SV', slide) in varSlidesSV {
 		assert slide in slidesSV;
 		
 		var varSlide := VarSlideOf(SV, SV', slide);
 		var cfg := ComputeCFG(S);
-		var slideDG := SlideDG(S, cfg);
+		var slideDG := SlideDGOf(S, cfg);
 
 		assert varSlide in varSlidesSV by {
 			assert exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, Sn/*sum4*/, varSlideDG.1) by {
@@ -379,7 +456,7 @@ lemma {:verify false}L1(X: set<Variable>, S: Statement, SV: Statement, SV': Stat
 				}
 			}
 		}
-	}
+	}	
 }
 
 // Working
@@ -387,15 +464,15 @@ lemma {:verify false}L2(S: Statement, SV: Statement, SV': Statement, slidesSV: s
 	requires Valid(S) && Core(S)
 	requires Valid(SV) && Core(SV)
 	requires Valid(SV') && Core(SV')
-	requires var slideDG := SlideDGOf(S); forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, CFGOf(S), V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
+	requires var slideDG := SlideDGOf(S, CFGOf(S)); forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, CFGOf(S), V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1));
 	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, varSlideDG.1));
-	ensures forall slide :: slide in SlideDGOf(S).1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV;
+	ensures forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV;
 {
 	var cfg := ComputeCFG(S);
-	var slideDG := SlideDG(S, cfg); 
-	assume slideDG == SlideDGOf(S); 
+	var slideDG := SlideDGOf(S, cfg); 
+	assume slideDG == SlideDGOf(S, cfg); 
 	assume cfg == CFGOf(S);
-	assert forall slide :: slide in SlideDGOf(S).1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV by {
+	assert forall slide :: slide in slideDG.1 - slidesSV ==> VarSlideOf(SV, SV', slide) !in varSlidesSV by {
 
 		forall slide | slide in slideDG.1 - slidesSV ensures VarSlideOf(SV, SV', slide) !in varSlidesSV {
 			var varSlide := VarSlideOf(SV, SV', slide);
@@ -638,7 +715,9 @@ function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
 	reads *
 	requires Valid(S)
 	requires Core(S)
-	requires slides <= allSlides(S)
+	//requires forall slide :: slide in allSlidesOf(S) && exists l :: slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
+	requires forall slide :: exists l :: slide in allSlidesOf(S) && slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
+	requires slides <= allSlidesOf(S)
 	ensures Core(statementOf(slides, S))
 	ensures Valid(statementOf(slides, S))
 	ensures Substatement(statementOf(slides, S), S)
@@ -650,16 +729,19 @@ function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
 	else
 	var slide :| slide in slides;
 	match slide.0 {
-	case Node(l) => 	assert ValidLabel(l, S);
+	case Node(l) => 	assert slide in allSlidesOf(S);
+						assert ValidLabel(l, S);
 						var S' := statementOfSlide(slide, l, S);
+						assert Substatement(S', S);
 						var rest := statementOf(slides - {slide}, S);
+						assert Substatement(rest, S);
 						mergeStatements(S', rest, S)
 	case Entry =>		Skip // ?
 	case Exit =>		Skip // ?
 	}
 }
 
-function {:verify true}allSlides(S: Statement) : set<Slide>
+function {:verify true}allSlidesOf(S: Statement) : set<Slide>
 	reads *
 	requires Valid(S)
 	requires Core(S)
@@ -672,7 +754,15 @@ predicate {:verify true}ValidLabel(l: Label, S: Statement)
 	requires Valid(S)
 	requires Core(S)
 {
-	|l| >= 1 && |l| <= maxLabelSize(S)
+	if l == [] then true
+	else
+	match S {
+	case Skip =>				false
+	case Assignment(LHS,RHS) =>	false
+	case SeqComp(S1,S2) =>		if l[0] == 1 then ValidLabel(l[1..], S1) else ValidLabel(l[1..], S2)
+	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then ValidLabel(l[1..], Sthen) else ValidLabel(l[1..], Selse)
+	case DO(B,Sloop) =>			if l[0] == 1 then ValidLabel(l[1..], Sloop) else false
+	}
 }
 
 function {:verify true}maxLabelSize(S: Statement): int
@@ -681,8 +771,8 @@ function {:verify true}maxLabelSize(S: Statement): int
 	requires Core(S)
 {
 	match S {
-	case Skip => 1
-	case Assignment(LHS,RHS) =>	1
+	case Skip => 0
+	case Assignment(LHS,RHS) =>	0
 	case SeqComp(S1,S2) =>		1 + max(maxLabelSize(S1), maxLabelSize(S2))
 	case IF(B0,Sthen,Selse) =>	1 + max(maxLabelSize(Sthen), maxLabelSize(Selse))
 	case DO(B,Sloop) =>			1 + maxLabelSize(Sloop)
@@ -703,6 +793,8 @@ function {:verify false}statementOfSlide(slide: Slide, l: Label, S: Statement): 
 	ensures Valid(statementOfSlide(slide, l, S))
 	ensures Substatement(statementOfSlide(slide, l, S), S)
 {
+	if l == [] then S
+	else
 	match S {
 	case Skip => Skip
 	case Assignment(LHS,RHS) => S
@@ -712,7 +804,7 @@ function {:verify false}statementOfSlide(slide: Slide, l: Label, S: Statement): 
 	}
 }
 
-function {:verify true}mergeStatements(S1: Statement, S2: Statement, S: Statement) : Statement
+function {:verify false}mergeStatements(S1: Statement, S2: Statement, S: Statement) : Statement
 	reads *
 	requires Valid(S1)
 	requires Valid(S2)
@@ -723,8 +815,41 @@ function {:verify true}mergeStatements(S1: Statement, S2: Statement, S: Statemen
 	requires Substatement(S1, S) && Substatement(S2, S) 
 	ensures Valid(mergeStatements(S1, S2, S))
 	ensures Core(mergeStatements(S1, S2, S))
+	ensures Substatement(mergeStatements(S1, S2, S), S)
 {
-	match S1 {
+	match S {
+	case Skip =>					Skip
+	case Assignment(LHS',RHS') =>	match S1 {
+									case Skip =>					S2
+									case Assignment(LHS1,RHS1) =>	match S2 {
+																	case Skip => S1
+																	case Assignment(LHS2,RHS2) => var LR := mergeAssignments(LHS1, LHS2, RHS1, RHS2, {}); Assignment(LR.0, LR.1)
+																	}
+									}
+	case SeqComp(S1',S2') =>		match S1 {
+									case Skip =>					S2
+									case SeqComp(S11,S12) =>		match S2 {
+																	case Skip => S1
+																	case SeqComp(S21,S22) => SeqComp(mergeStatements(S11, S21, S1'), mergeStatements(S12, S22, S2'))
+																	}
+									}
+	case IF(B',Sthen',Selse') =>	match S1 {
+									case Skip =>					S2
+									case IF(B1,Sthen1,Selse1) =>	match S2 {
+																	case Skip => S1
+																	case IF(B2,Sthen2,Selse2) => IF(B1, mergeStatements(Sthen1, Sthen2, Sthen'), mergeStatements(Selse1, Selse2, Selse'))
+																	}
+									}
+	case DO(B',Sloop') =>			match S1 {
+									case Skip =>					S2
+									case DO(B1,Sloop1) =>			match S2 {
+																	case Skip => S1
+																	case DO(B2,Sloop2) => DO(B1, mergeStatements(Sloop1, Sloop2, Sloop'))
+																	}
+									}
+	}
+
+	/*match S1 {
 	case Skip =>				  S2
 								  
 	case Assignment(LHS1,RHS1) => match S2 {
@@ -751,7 +876,7 @@ function {:verify true}mergeStatements(S1: Statement, S2: Statement, S: Statemen
 																case DO(B',Sloop') => DO(B1, mergeStatements(Sloop1, Sloop2, Sloop'))
 																}
 								  }
-	}
+	}*/
 }
 
 function {:verify false}mergeAssignments(LHS1: seq<Variable>, LHS2: seq<Variable>, RHS1: seq<Expression>, RHS2: seq<Expression>, vars: set<Variable>) : (seq<Variable>, seq<Expression>)
@@ -824,7 +949,7 @@ predicate {:verify true}Substatement(S': Statement, S: Statement)
 	case Skip =>				S' == Skip		
 	case Assignment(LHS,RHS) =>	match S' {
 								case Skip => true
-								case Assignment(LHS',RHS') => |LHS'| <= |LHS| && |RHS'| <= |RHS| && SubAssignment(LHS', RHS', LHS, RHS)
+								case Assignment(LHS',RHS') => Subassignment(LHS', RHS', LHS, RHS)
 								case SeqComp(S1',S2') => false
 								case IF(B0',Sthen',Selse') => false
 								case DO(B',Sloop') => false
@@ -840,7 +965,7 @@ predicate {:verify true}Substatement(S': Statement, S: Statement)
 								case Skip => true
 								case Assignment(LHS',RHS') => false
 								case SeqComp(S1',S2') => false								
-								case IF(B0',Sthen',Selse') => B0 == B0' && Substatement(Sthen', Sthen) && Substatement(Selse', Selse)
+								case IF(B0',Sthen',Selse') => SameBooleanExpressions(B0, B0') && Substatement(Sthen', Sthen) && Substatement(Selse', Selse)
 								case DO(B',Sloop') => false
 								}
 	case DO(B,Sloop) =>			match S' {
@@ -848,157 +973,55 @@ predicate {:verify true}Substatement(S': Statement, S: Statement)
 								case Assignment(LHS',RHS') => false
 								case SeqComp(S1',S2') => false								
 								case IF(B0',Sthen',Selse') => false
-								case DO(B',Sloop') => B == B' && Substatement(Sloop', Sloop)
+								case DO(B',Sloop') => SameBooleanExpressions(B, B') && Substatement(Sloop', Sloop)
 								}
 	}
 }
 
-predicate {:verify true}SubAssignment(LHS': seq<Variable>, RHS': seq<Expression>, LHS: seq<Variable>, RHS: seq<Expression>)
-	requires |LHS'| <= |LHS| && |RHS'| <= |RHS| && |LHS'| == |RHS'| && |LHS| == |RHS|
+predicate {:verify true}Subassignment(LHS': seq<Variable>, RHS': seq<Expression>, LHS: seq<Variable>, RHS: seq<Expression>)
+	requires ValidAssignment(LHS', RHS')
+	requires ValidAssignment(LHS, RHS)
 {
+	// S':  x,z := 1,3;
 	// S:   x,y,z := 1,2,3;
-	// S':  z,x := 3,1;
 
 	if LHS' == [] then true
+	else if LHS == [] then false
 	else
-		if LHS'[0] !in LHS then false
+		assert ValidAssignment(LHS[1..], RHS[1..]) by { LemmaSetOf1(LHS); }
+		assert ValidAssignment(LHS'[1..], RHS'[1..]) by { LemmaSetOf1(LHS'); }
+		if LHS'[0] == LHS[0] then
+			if SameExpressions(RHS'[0], RHS[0]) then Subassignment(LHS'[1..], RHS'[1..], LHS[1..], RHS[1..])
+			else false
 		else
-			var i := findVariableInSeq(LHS'[0], LHS);
-			if RHS'[0] != RHS[i] then false
-			else
-				SubAssignment(LHS'[1..], RHS'[1..], LHS, RHS)		
+			Subassignment(LHS', RHS', LHS[1..], RHS[1..])
 }
 
-function {:verify true}findVariableInSeq(v: Variable, vars: seq<Variable>): int
-	requires v in vars
-	ensures 0 <= findVariableInSeq(v, vars) < |vars|
+lemma LemmaSetOf1<T>(q: seq<T>)
+	requires |q| != 0
+	requires |setOf(q)| == |q|
+	ensures |setOf(q[1..])| == |q[1..]|
+/*
 {
-	if vars[0] == v then 0
-	else findVariableInSeq(v, vars[1..]) + 1
+	calc {
+		|q[1..]|;
+	== { assert |[q[0]]| == 1; assert q == [q[0]] + q[1..]; }
+		|LHS| - 1;
+	== { assert |setOf(q)| == |q|; }
+		|setOf(q)| - 1;
+	== { assert q == [q[0]] + q[1..]; }
+		|setOf([q[0]] + q[1..])| - 1;
+	== { assert q[0] !in q[1..]; } // lemma
+		|setOf([q[0]]) + setOf(q[1..])| - 1;
+	== { assert setOf([q[0]]) * setOf(q[1..]) == {}; }
+		|setOf([q[0]])| + |setOf(q[1..])| - 1;
+	== { assert |setOf([q[0]])| == 1; }
+		|setOf(q[1..])|;
+	}
 }
-
+*/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-/*if y == 0
-	x := 1;
-else
-	x := 2;
-
-
-
-if y == 0
-	x1 := 1;
-	x3 := x1;
-else
-	x2 := 2;
-	x3 := x2;
-
-
-
-if y == 0
-	x := 1;
-else
-	;
-
-
-if y == 0
-	x1 := 1;
-	;
-else
-	;*/
-
-/*
-// Original S:
-
-i=0
-sum=0
-prod=1
-while i<a.len do
-	sum=sum+a[i]
-	prod=prod*a[i]
-	i=i+1
-od
-i=0
-
-// FISlice Of {prod}
-
-i=0
-
-prod=1
-while i<a.len do
-
-	prod=prod*a[i]
-	i=i+1
-od
-i=0
-
-
-// To SSA:
-
-|[ var i0,sum0,prod0,i1,i4,i7,i8,sum2,sum4,sum5,prod3,prod4,prod6,prod7;
-
-i0,sum0,prod0=i,sum,prod
-
-i1=0
-sum2=0
-prod3=1
-i4,sum4,prod4=i1,sum2,prod3
-while i4<a.len do
-	sum5=sum4+a[i4]
-	prod6=prod4*a[i4]
-	i7=i4+1
-	i4,sum4,prod4=i7,sum5,prod6
-od
-i8=0
-
-i,sum,prod=i8,sum4,prod4 ]|
-
-
-// FISlice:
-
-V={prod}
-V'={prod4}
-
-|[ var i0,sum0,prod0,i1,i4,i7,i8,sum2,sum4,sum5,prod3,prod4,prod6,prod7;
-
-i0,sum0,prod0=i,sum,prod
-
-i1=0
-
-prod3=1
-i4,prod4=i1,prod3
-while i4<a.len do
-	
-	prod6=prod4*a[i4]
-	i7=i4+1
-	i4,prod4=i7,prod6
-od
-
-
-i,sum,prod=i8,sum4,prod4 ]|
-
-glob(slides(prod4))={prod4,prod3,prod6,i4,a}
-U1={prod4,prod3,prod6,i4}
-V1={prod4,prod3,prod6,i4}
-glob(slides(prod4,prod3,prod6,i4))={prod4,prod3,prod6,i1,i4,i7,a}
-U2={prod4,prod3,prod6,i1,i4,i7}
-V2={prod4,prod3,prod6,i1,i4,i7} - VStar
-
-
-// From SSA:
-
-i=0
-prod=1
-while i<a.len do
-	prod=prod*a[i]
-	i=i+1
-od
-
-
-*/
 
 
 function method {:verify false}GetAssignmentsOfV(LHS : seq<Variable>, RHS : seq<Expression>, V: set<Variable>) : Statement
@@ -1049,120 +1072,664 @@ method {:verify false} ComputeFISlice(S: Statement, V: set<Variable>, ghost varS
 	//SV := ComputeSlides(S, ComputeSlidesDepRtc(S, V));
 }
 
+/******************************************* Proof of Substatement(res, S) *******************************************/
 
-
-lemma {:verify false}L20(S: Statement, S': Statement, SV': Statement, res: Statement, X: seq<Variable>, XLs: seq<set<Variable>>, l: Label, varLabel: Label) // called with l==varLabel==[]
+lemma {:verify true}L20(S: Statement, S': Statement, SV': Statement, res: Statement, X: seq<Variable>, XLsToSSA: seq<set<Variable>>, l: Label, varLabel: Label) // called with l==varLabel==[]
 	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
 	requires Core(S) && Core(S') && Core(SV') && Core(res)
 	requires ValidLabel(l, S)
 	requires ValidLabel(l, res)
 	requires ValidLabel(varLabel, SV')
 	requires ValidLabel(varLabel, S')
-	requires MatchingLabels(res, l, SV', varLabel)
-	requires MergedVars1(SV', res, XLs, X) // FromSSA Postcondition
-	ensures Substatement(res, S)
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	requires MatchingSlips(S', SV', varLabel)
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	// ==>
+	requires MatchingSlips(S, res, l)
+	requires NoSelfAssignments(S')
+	requires MergedVars1(S', S, XLsToSSA, X)	// ToSSA Postcondition
+	requires Substatement(SV', S')				// ComputeFISlice Postcondition
+	requires NoSelfAssignments(SV')
+	requires MergedVars1(SV', res, XLsToSSA, X) // FromSSA Postcondition
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+	decreases maxLabelSize(S) - |l|
 {
 	var slipOfS := slipOf(S, l);
 	var slipOfRes := slipOf(res, l);
 	var slipOfSV' := slipOf(SV', varLabel);
+	var slipOfS' := slipOf(S', varLabel);
 
 	match slipOfS {
 	case Skip =>				assert slipOfRes == Skip; // There is no statement to slice from, therefore slipOfRes is also skip		
 	case Assignment(LHS,RHS) =>	match slipOfRes { // Assignment or Skip
 								case Skip =>						assert Substatement(Skip, Assignment(LHS,RHS));
-								case Assignment(resLHS,resRHS) =>	assert SubAssignment(resLHS, resRHS, LHS, RHS) by {
+								case Assignment(resLHS,resRHS) =>	assert Subassignment(resLHS, resRHS, LHS, RHS) by {
+																		assert IsAssignment(slipOfSV');/* by {
+																			assert MatchingSlipsFromSSA(SV', varLabel, res, l);
+																		}*/
 																		match slipOfSV' {
-																		case Assignment(SV'LHS,SV'RHS) => L22(S, S', SV', res, X, XLs, l, varLabel);
-																		case SeqComp(SV'S1,SV'S2) => L22(S, S', SV', res, X, XLs, l, varLabel+[1]); // The last assignment of while or if
+																		case Assignment(SV'LHS,SV'RHS) => L22(S, S', SV', res, X, XLsToSSA, l, varLabel);
 																		}
 																	}
-								case SeqComp(resS1,resS2) =>		assert false;
-								case IF(resB0,resSthen,resSelse) => assert false;
-								case DO(resB,resSloop) =>			assert false;
+								case SeqComp(resS1,resS2) =>		assert false by { L30(S, res, l); }
+								case IF(resB0,resSthen,resSelse) => assert false by { L30(S, res, l); }
+								case DO(resB,resSloop) =>			assert false by { L30(S, res, l); }
 								}
 	case SeqComp(S1,S2) =>		match slipOfRes { // SeqComp or Skip
 								case Skip =>						assert Substatement(Skip, SeqComp(S1,S2));
-								case Assignment(resLHS,resRHS) =>	assert false;
-								case SeqComp(resS1,resS2) =>		L20(S, S', SV', res, X, XLs, l+[1], varLabel+[1]);
-																	L20(S, S', SV', res, X, XLs, l+[2], varLabel+[2]);
-								case IF(resB0,resSthen,resSelse) => assert false;
-								case DO(resB,resSloop) =>			assert false;
-								}	
+								case Assignment(resLHS,resRHS) =>	assert false by { L31(S, res, l); }
+								case SeqComp(resS1,resS2) =>		assert ValidLabel(l+[1], S) by {
+																		assert slipOfS == slipOf(S, l);
+																		assert ValidLabel([1], slipOfS) by {
+																			assert IsSeqComp(slipOfS);
+																		}
+																		LemmaValidLabelOfSlip(l, [1], S);
+																	}
+																	assert ValidLabel(l+[1], res) by { LemmaValidLabelOfSlip(l, [1], res); }
+																	assert ValidLabel(varLabel+[1], S') by { LemmaValidLabelOfSlip(varLabel, [1], S'); }
+																	assert ValidLabel(varLabel+[1], SV') by { LemmaValidLabelOfSlip(varLabel, [1], SV'); }
+
+																	assert ValidLabel(l+[2], S) by { LemmaValidLabelOfSlip(l, [2], S); }
+																	assert ValidLabel(l+[2], res) by { LemmaValidLabelOfSlip(l, [2], res); }
+																	assert ValidLabel(varLabel+[2], S') by { LemmaValidLabelOfSlip(varLabel, [2], S'); }
+																	assert ValidLabel(varLabel+[2], SV') by { LemmaValidLabelOfSlip(varLabel, [2], SV'); }
+																	
+																	assert MatchingSlipsToSSA(S, l+[1], S', varLabel+[1]) by { L34SeqComp(S, l, l+[1], S', varLabel, varLabel+[1]); }
+																	assert MatchingSlips(S', SV', varLabel+[1]) by { L35SeqComp(S', SV', varLabel, varLabel+[1]); }
+																	assert MatchingSlipsFromSSA(SV', varLabel+[1], res, l+[1]) by { L36SeqComp(SV', varLabel, varLabel+[1], res, l, l+[1]); }
+																	assert MatchingSlips(S, res, l+[1]) by { L37SeqComp(S, S', SV', res, l, l+[1], varLabel, varLabel+[1]); }
+																	
+																	assert MatchingSlipsToSSA(S, l+[2], S', varLabel+[2]) by { L34SeqComp(S, l, l+[2], S', varLabel, varLabel+[2]); }
+																	assert MatchingSlips(S', SV', varLabel+[2]) by { L35SeqComp(S', SV', varLabel, varLabel+[2]); }
+																	assert MatchingSlipsFromSSA(SV', varLabel+[2], res, l+[2]) by { L36SeqComp(SV', varLabel, varLabel+[2], res, l, l+[2]); }
+																	assert MatchingSlips(S, res, l+[2]) by { L37SeqComp(S, S', SV', res, l, l+[2], varLabel, varLabel+[2]); }
+											
+																	assert maxLabelSize(S) >= |l|  by { LemmaBoundedLabelLength(S, l); }
+																	assert maxLabelSize(S) - |l| >= 1 by { LemmaBoundedLabelLength(S, l+[1]); }
+
+																	L20(S, S', SV', res, X, XLsToSSA, l+[1], varLabel+[1]);
+																	L20(S, S', SV', res, X, XLsToSSA, l+[2], varLabel+[2]);	
+																	
+																	assert Substatement(slipOf(res, l), slipOf(S, l)) by { L39(S, res, l); }	
+								case IF(resB0,resSthen,resSelse) =>	assert false by { L31(S, res, l); }
+								case DO(resB,resSloop) =>			assert false by { L31(S, res, l); }
+								}
 	case IF(B0,Sthen,Selse) =>	match slipOfRes { // IF or Skip
 								case Skip =>						assert Substatement(Skip, IF(B0,Sthen,Selse));
-								case Assignment(resLHS,resRHS) =>	assert false;
-								case SeqComp(resS1,resS2) =>		assert false;
-								case IF(resB0,resSthen,resSelse) => assert EqualBooleanExpressions(B0, resB0);
-																	L20(S, S', SV', res, X, XLs, l+[1], varLabel+[1]);
-																	L20(S, S', SV', res, X, XLs, l+[2], varLabel+[2]);
-								case DO(resB,resSloop) =>			assert false;
-								}
+								case Assignment(resLHS,resRHS) =>	assert false by { L32(S, res, l); }
+								case SeqComp(resS1,resS2) =>		assert false by { L32(S, res, l); }
+								case IF(resB0,resSthen,resSelse) => assume SameBooleanExpressions(B0, resB0);
+																	assert ValidLabel(l+[1], S) by { LemmaValidLabelOfSlip(l, [1], S); }
+																	assert ValidLabel(l+[1], res) by { LemmaValidLabelOfSlip(l, [1], res); }
+																	assert ValidLabel(varLabel+[1,1], S') by {
+																		L50(S, l, S', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [1,1], S');
+																	}
+																	assert ValidLabel(varLabel+[1,1], SV') by {
+																		L50(S, l, S', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [1,1], SV');
+																	}
+
+																	assert ValidLabel(l+[2], S) by { LemmaValidLabelOfSlip(l, [2], S); }
+																	assert ValidLabel(l+[2], res) by { LemmaValidLabelOfSlip(l, [2], res); }
+																	assert ValidLabel(varLabel+[2,1], S') by {
+																		L50(S, l, S', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [2,1], S');
+																	}
+																	assert ValidLabel(varLabel+[2,1], SV') by {
+																		L50(S, l, S', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [2,1], SV');
+																	}
+
+																	assert MatchingSlipsToSSA(S, l+[1], S', varLabel+[1,1]) by { L34IF(S, l, l+[1], S', varLabel, varLabel+[1,1]); }
+																	assert MatchingSlips(S', SV', varLabel+[1,1]) by { L35IF(S', SV', varLabel, varLabel+[1,1]); }
+																	assert MatchingSlipsFromSSA(SV', varLabel+[1,1], res, l+[1]) by { L36IF(SV', varLabel, varLabel+[1,1], res, l, l+[1]); }
+																	assert MatchingSlips(S, res, l+[1]) by { L37IF(S, S', SV', res, l, l+[1], varLabel, varLabel+[1,1]); }
+																	
+																	assert MatchingSlipsToSSA(S, l+[2], S', varLabel+[2,1]) by { L34IF(S, l, l+[2], S', varLabel, varLabel+[2,1]); }
+																	assert MatchingSlips(S', SV', varLabel+[2,1]) by { L35IF(S', SV', varLabel, varLabel+[2,1]); }
+																	assert MatchingSlipsFromSSA(SV', varLabel+[2,1], res, l+[2]) by { L36IF(SV', varLabel, varLabel+[2,1], res, l, l+[2]); }
+																	assert MatchingSlips(S, res, l+[2]) by { L37IF(S, S', SV', res, l, l+[2], varLabel, varLabel+[2,1]); }
+																	
+																	assert maxLabelSize(S) >= |l|  by { LemmaBoundedLabelLength(S, l); }
+																	assert maxLabelSize(S) - |l| >= 1 by { LemmaBoundedLabelLength(S, l+[1]); }
+
+																	L20(S, S', SV', res, X, XLsToSSA, l+[1], varLabel+[1,1]);
+																	L20(S, S', SV', res, X, XLsToSSA, l+[2], varLabel+[2,1]);
+																	
+																	assert Substatement(slipOf(res, l), slipOf(S, l)) by { L40(S, res, l); }	
+								case DO(resB,resSloop) =>			assert false by { L32(S, res, l); }
+								}	
 	case DO(B,Sloop) =>			match slipOfRes { // DO or Skip
 								case Skip =>						assert Substatement(Skip, DO(B,Sloop));
-								case Assignment(resLHS,resRHS) =>	assert false;
-								case SeqComp(resS1,resS2) =>		assert false;
-								case IF(resB0,resSthen,resSelse) => assert false;
-								case DO(resB,resSloop) =>			assert EqualBooleanExpressions(B, resB);
-																	L20(S, S', SV', res, X, XLs, l+[1], varLabel+[2,1]);
-								}
+								case Assignment(resLHS,resRHS) =>	assert false by { L33(S, res, l); }
+								case SeqComp(resS1,resS2) =>		assert false by { L33(S, res, l); }
+								case IF(resB0,resSthen,resSelse) => assert false by { L33(S, res, l); }
+								case DO(resB,resSloop) =>			assume SameBooleanExpressions(B, resB);
+																	assert ValidLabel(l+[1], S) by { LemmaValidLabelOfSlip(l, [1], S); }
+																	assert ValidLabel(l+[1], res) by { LemmaValidLabelOfSlip(l, [1], res); }
+																	assert ValidLabel(varLabel+[2,1,1], S') by {
+																		L51(S, l, S', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [2,1,1], S');
+																	}
+																	assert ValidLabel(varLabel+[2,1,1], SV') by {																	
+																		L51(res, l, SV', varLabel);
+																		LemmaValidLabelOfSlip(varLabel, [2,1,1], SV');
+																	}
+																	
+																	assert MatchingSlipsToSSA(S, l+[1], S', varLabel+[2,1,1]) by { L34DO(S, l, l+[1], S', varLabel, varLabel+[2,1,1]); }
+																	assert MatchingSlips(S', SV', varLabel+[2,1,1]) by { L35DO(S', SV', varLabel, varLabel+[2,1,1]); }
+																	assert MatchingSlipsFromSSA(SV', varLabel+[2,1,1], res, l+[1]) by { L36DO(SV', varLabel, varLabel+[2,1,1], res, l, l+[1]); }
+																	assert MatchingSlips(S, res, l+[1]) by { L37DO(S, S', SV', res, l, l+[1], varLabel, varLabel+[2,1,1]); }
+																	
+																	assert maxLabelSize(S) >= |l|  by { LemmaBoundedLabelLength(S, l); }
+																	assert maxLabelSize(S) - |l| >= 1 by { LemmaBoundedLabelLength(S, l+[1]); }
+
+																	L20(S, S', SV', res, X, XLsToSSA, l+[1], varLabel+[2,1,1]);
+																	assert Substatement(slipOf(res, l), slipOf(S, l)) by { L41(S, res, l); }	
+								}	
 	}
+	assert Substatement(slipOf(res, l), slipOf(S, l));
 }
 
-lemma {:verify false}L22(S: Statement, S': Statement, SV': Statement, res: Statement, X: seq<Variable>, XLs: seq<set<Variable>>, l: Label, varLabel: Label)
+lemma LemmaBoundedLabelLength(S: Statement, l: Label)
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l, S)
+	ensures maxLabelSize(S) >= |l|
+
+
+lemma {:verify false}LemmaValidLabelOfSlip(l1: Label, l2: Label, S: Statement)
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l1, S)
+	requires ValidLabel(l2, slipOf(S, l1))
+	ensures ValidLabel(l1+l2, S)
+{
+	if l1 == [] {
+		assert ValidLabel(l1+l2, S) by {
+			assert []+l2 == l2;
+			assert ValidLabel(l2, slipOf(S, []));
+			assert ValidLabel(l2, S);
+		}
+	}
+	else {
+		match S {
+		case Skip =>				assert false;
+		case Assignment(LHS,RHS) =>	assert false;
+		case SeqComp(S1,S2) =>		if l1[0] == 1 { LemmaValidLabelOfSlip(l1[1..], l2, S1); } else { LemmaValidLabelOfSlip(l1[1..], l2, S2); }
+		case IF(B0,Sthen,Selse) =>	if l1[0] == 1 { LemmaValidLabelOfSlip(l1[1..], l2, Sthen); } else { LemmaValidLabelOfSlip(l1[1..], l2, Selse); }
+		case DO(B,Sloop) =>			if l1[0] == 1 { LemmaValidLabelOfSlip(l1[1..], l2, Sloop); } else { assert false; }
+		}
+	}
+
+	assert ValidLabel(l1+l2, S);
+}
+
+lemma {:verify true}L30(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Valid(res)
+	requires Core(S) && Core(res)
+	requires ValidLabel(l, S)
+	requires ValidLabel(l, res)
+	requires IsAssignment(slipOf(S, l))
+	requires !IsAssignment(slipOf(res, l)) && !IsSkip(slipOf(res, l))
+	requires MatchingSlips(S, res, l)
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+{
+	var slipOfS := slipOf(S, l);
+	var slipOfRes := slipOf(res, l);
+
+	assert !IsAssignment(slipOfRes) && !IsSkip(slipOfRes);
+	assert IsAssignment(slipOfRes) || IsSkip(slipOfRes) by {
+		assert MatchingSlips(S, res, l) && IsAssignment(slipOfS);
+	}
+	// ==>
+	assert Substatement(slipOfRes, slipOfS);
+}
+
+lemma {:verify true}L31(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Valid(res)
+	requires Core(S) && Core(res)
+	requires ValidLabel(l, S)
+	requires ValidLabel(l, res)
+	requires IsSeqComp(slipOf(S, l))
+	requires !IsSeqComp(slipOf(res, l)) && !IsSkip(slipOf(res, l))
+	requires MatchingSlips(S, res, l)
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+{
+	var slipOfS := slipOf(S, l);
+	var slipOfRes := slipOf(res, l);
+
+	assert !IsSeqComp(slipOfRes) && !IsSkip(slipOfRes);
+	assert IsSeqComp(slipOfRes) || IsSkip(slipOfRes) by {
+		assert MatchingSlips(S, res, l) && IsSeqComp(slipOfS);
+	}
+	// ==>
+	assert Substatement(slipOfRes, slipOfS);
+}
+
+lemma {:verify true}L32(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Valid(res)
+	requires Core(S) && Core(res)
+	requires ValidLabel(l, S)
+	requires ValidLabel(l, res)
+	requires IsIF(slipOf(S, l))
+	requires !IsIF(slipOf(res, l)) && !IsSkip(slipOf(res, l))
+	requires MatchingSlips(S, res, l)
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+{
+	var slipOfS := slipOf(S, l);
+	var slipOfRes := slipOf(res, l);
+
+	assert !IsIF(slipOfRes) && !IsSkip(slipOfRes);
+	assert IsIF(slipOfRes) || IsSkip(slipOfRes) by {
+		assert MatchingSlips(S, res, l) && IsIF(slipOfS);
+	}
+	// ==>
+	assert Substatement(slipOfRes, slipOfS);
+}
+
+lemma {:verify true}L33(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Valid(res)
+	requires Core(S) && Core(res)
+	requires ValidLabel(l, S)
+	requires ValidLabel(l, res)
+	requires IsDO(slipOf(S, l))
+	requires !IsDO(slipOf(res, l)) && !IsSkip(slipOf(res, l))
+	requires MatchingSlips(S, res, l)
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+{
+	var slipOfS := slipOf(S, l);
+	var slipOfRes := slipOf(res, l);
+
+	assert !IsDO(slipOfRes) && !IsSkip(slipOfRes);
+	assert IsDO(slipOfRes) || IsSkip(slipOfRes) by {
+		assert MatchingSlips(S, res, l) && IsDO(slipOfS);
+	}
+	// ==>
+	assert Substatement(slipOfRes, slipOfS);
+}
+
+lemma {:verify true}L22(S: Statement, S': Statement, SV': Statement, res: Statement, X: seq<Variable>, XLsToSSA: seq<set<Variable>>, l: Label, varLabel: Label)
 	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
 	requires Core(S) && Core(S') && Core(SV') && Core(res)
 	requires ValidLabel(l, S)
 	requires ValidLabel(l, res)
 	requires ValidLabel(varLabel, SV')
 	requires ValidLabel(varLabel, S')
-	requires MatchingLabels(res, l, SV', varLabel)
-	requires exists LHS,RHS :: S == Assignment(LHS,RHS)
-	requires exists resLHS,resRHS :: res == Assignment(resLHS,resRHS)
-	requires Substatement(SV', S')
-	ensures forall LHS,RHS,resLHS,resRHS :: S == Assignment(LHS,RHS) && res == Assignment(resLHS,resRHS) ==> SubAssignment(resLHS, resRHS, LHS, RHS)
+	requires MatchingSlipsToSSA(S, l, S', varLabel) // add to tossa postcodition
+	requires MatchingSlips(S', SV', varLabel)
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l) // add to fromssa postcodition
+	// ==>
+	requires MatchingSlips(S, res, l)
+	requires NoSelfAssignments(S')
+	requires MergedVars1(S', S, XLsToSSA, X) // ToSSA Postcondition
+	requires Substatement(SV', S')	
+	requires NoSelfAssignments(SV')
+	requires MergedVars1(SV', res, XLsToSSA, X) // FromSSA Postcondition
+	requires IsAssignment(slipOf(S,l))
+	requires IsAssignment(slipOf(res,l))
+	requires exists LHS,RHS,resLHS,resRHS :: slipOf(S,l) == Assignment(LHS,RHS) && slipOf(res,l) == Assignment(resLHS,resRHS) 
+	ensures forall LHS,RHS,resLHS,resRHS :: slipOf(S,l) == Assignment(LHS,RHS) && slipOf(res,l) == Assignment(resLHS,resRHS) ==> Subassignment(resLHS, resRHS, LHS, RHS)
 {
 	var slipOfS := slipOf(S,l);
 	var slipOfRes := slipOf(res,l);
 	var slipOfSV' := slipOf(SV',varLabel);
 	var slipOfS' := slipOf(S',varLabel);
-
 	match slipOfS {	
-	case Assignment(LHS,RHS) => match slipOfRes {	
-								case Assignment(resLHS,resRHS) => assert SubAssignment(resLHS, resRHS, LHS, RHS) by {
-																	  match slipOfSV' {	
-																	  case Assignment(SV'LHS,SV'RHS) => assert Rename(slipOfSV', XLs, X) == slipOfRes;
-																										match slipOfS' {
-																										case Assignment(S'LHS,S'RHS) => // Has to be assignment because Substatement(SV',S')
-																											assert SubAssignment(SV'LHS, SV'RHS, S'LHS, S'RHS);
-																											assert RenameToSSA(slipOfS, 1).0 == slipOfS';
-																										}
-																	  }			
-																  }
+	case Assignment(LHS,RHS) =>
+		match slipOfRes {	
+		case Assignment(resLHS,resRHS) =>
+			assert Subassignment(resLHS, resRHS, LHS, RHS) by { // sum := 0 <= sum,prod := 0,1 
+				assert IsAssignment(slipOfSV') by { assert MatchingSlipsFromSSA(SV', varLabel, res, l); }
+				assert IsAssignment(slipOfS');
+				assert Substatement(slipOfSV', slipOfS') by { L38(SV', S', varLabel); /* Prove lemma! */}
+				
+				assert RemoveEmptyAssignments(Rename(slipOf(SV', varLabel), XLsToSSA, X)) == slipOf(res, l) by { L42(SV', varLabel, res, l, X, XLsToSSA); /* Prove lemma! */}
+				assert RemoveEmptyAssignments(Rename(slipOf(S', varLabel), XLsToSSA, X)) == slipOf(S, l) by { L43(S', varLabel, S, l, X, XLsToSSA); /* Prove lemma! */}
+				L44(S, S', SV', res, l, varLabel, X, XLsToSSA);	/* Prove lemma! */
+			}
 	
-								assert SubAssignment(resLHS, resRHS, LHS, RHS);					 
-								}
+			assert Subassignment(resLHS, resRHS, LHS, RHS);				 
+		}
 
-	assert forall resLHS,resRHS :: slipOfRes == Assignment(resLHS,resRHS) ==> SubAssignment(resLHS, resRHS, LHS, RHS);
+		assert forall resLHS,resRHS :: slipOfRes == Assignment(resLHS,resRHS) ==> Subassignment(resLHS, resRHS, LHS, RHS);
 	}
 
-	assert forall LHS,RHS,resLHS,resRHS :: slipOfS == Assignment(LHS,RHS) && slipOfRes == Assignment(resLHS,resRHS) ==> SubAssignment(resLHS, resRHS, LHS, RHS);
+	assert forall LHS,RHS,resLHS,resRHS :: slipOfS == Assignment(LHS,RHS) && slipOfRes == Assignment(resLHS,resRHS) ==> Subassignment(resLHS, resRHS, LHS, RHS);
 }
 
-predicate MatchingLabels(S: Statement, l: Label, S': Statement, varLabel: Label)
+
+predicate MatchingSlips(S: Statement, S': Statement, l: Label)
+	reads *
 	requires Valid(S) && Valid(S')
 	requires Core(S) && Core(S')
 	requires ValidLabel(l, S)
-	requires ValidLabel(varLabel, S')
+	requires ValidLabel(l, S')
 {
 	var slipOfS := slipOf(S, l);
-	var slipOfS' := slipOf(S', varLabel);
-
-
+	var slipOfS' := slipOf(S', l);
+	
 	match slipOfS {
-	case Skip =>				slipOfS' == Skip
-	case Assignment(LHS,RHS) =>	exists LHS1,RHS1 :: slipOfS' == Assignment(LHS1,RHS1)
-	case SeqComp(S1,S2) =>		exists S11,S22 :: slipOfS' == SeqComp(S11,S22)
-	case IF(B,Sthen,Selse) =>	exists B1,Sthen1,Selse1 :: slipOfS' == IF(B1,Sthen1,Selse1)
-	case DO(B,Sloop) =>			exists B1,Sloop1 :: slipOfS' == DO(B1,Sloop1) 
+	case Skip =>				IsSkip(slipOfS')
+	case Assignment(LHS,RHS) =>	IsSkip(slipOfS') || IsAssignment(slipOfS')
+	case SeqComp(S1,S2) =>		IsSkip(slipOfS') || IsSeqComp(slipOfS')
+	case IF(B,Sthen,Selse) =>	IsSkip(slipOfS') || IsIF(slipOfS')
+	case DO(B,Sloop) =>			IsSkip(slipOfS') || IsDO(slipOfS')
 	}	
 }
+
+predicate MatchingSlipsToSSA(S: Statement, l: Label, S': Statement, l': Label)
+	reads *
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S)
+	requires ValidLabel(l', S')
+	//ensures IsIF(slipOf(S, l)) ==> ValidLabel([1,1], slipOf(S', l')) //call lemma instead
+	//ensures IsIF(slipOf(S, l)) ==> ValidLabel([2,1], slipOf(S', l')) //call lemma instead
+	//ensures IsDO(slipOf(S, l)) ==> ValidLabel([2,1,1], slipOf(S', l')) //call lemma instead
+{
+	var slipOfS := slipOf(S, l);
+	var slipOfS' := slipOf(S', l');
+	
+	match slipOfS {
+	case Skip =>				IsSkip(slipOfS')
+	case Assignment(LHS,RHS) =>	IsAssignment(slipOfS')
+	case SeqComp(S1,S2) =>		IsSeqComp(slipOfS')
+	case IF(B,Sthen,Selse) =>	IsIF(slipOfS') &&
+								match slipOfS' {
+								case IF(B',Sthen',Selse') => 
+									IsSeqComp(Sthen') && IsSeqComp(Selse')
+								}
+	case DO(B,Sloop) =>			IsSeqComp(slipOfS') &&
+								match slipOfS' {
+								case SeqComp(S1',S2') =>
+									IsAssignment(S1') && IsDO(S2') &&
+									match S2' {
+									case DO(B', Sloop') => /*assert IsDO(slipOf(S, l)) ==> ValidLabel([2,1,1], slipOf(S', l')) by {
+															   assert IsDO(slipOf(S, l)) && IsSeqComp(slipOfS') ==> ValidLabel([2], slipOf(S', l'));
+															   assert IsDO(slipOf(S, l)) && IsSeqComp(slipOfS') && IsDO(S2') ==> ValidLabel([2,1], slipOf(S', l'));
+															   assert IsDO(slipOf(S, l)) && IsSeqComp(slipOfS') && IsDO(S2') && IsSeqComp(Sloop') ==> ValidLabel([2,1,1], slipOf(S', l'));
+														   }*/
+														   IsSeqComp(Sloop') // maybe add another match
+									}
+								}
+	}	
+}
+
+predicate MatchingSlipsFromSSA(S': Statement, l': Label, S: Statement, l: Label)
+	reads *
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S)
+	requires ValidLabel(l', S')
+{
+	MatchingSlipsToSSA(S, l, S', l')
+}
+
+lemma L50(S: Statement, l: Label, S': Statement, l': Label)
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S)
+	requires ValidLabel(l', S')
+	requires MatchingSlipsToSSA(S, l, S', l')
+	requires IsIF(slipOf(S, l))
+	ensures exists b :: ValidLabel([b,1], slipOf(S', l'))
+
+lemma L51(S: Statement, l: Label, S': Statement, l': Label)
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S)
+	requires ValidLabel(l', S')
+	requires MatchingSlipsToSSA(S, l, S', l')
+	requires IsDO(slipOf(S, l))
+	ensures ValidLabel([2,1,1], slipOf(S', l'))
+
+lemma L34SeqComp(S: Statement, l: Label, newL: Label, S': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires IsSeqComp(slipOf(S, l))
+	requires exists b :: newVarLabel == varLabel + [b] && newL == l + [b]
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	ensures MatchingSlipsToSSA(S, newL, S', newVarLabel)
+
+lemma L34IF(S: Statement, l: Label, newL: Label, S': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires IsIF(slipOf(S, l))
+	requires exists b :: newVarLabel == varLabel + [b,1] && newL == l + [b]
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	ensures MatchingSlipsToSSA(S, newL, S', newVarLabel)
+
+lemma L34DO(S: Statement, l: Label, newL: Label, S': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S')
+	requires Core(S) && Core(S')
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires IsDO(slipOf(S, l))
+	requires newVarLabel == varLabel + [2,1,1] && newL == l + [1]
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	ensures MatchingSlipsToSSA(S, newL, S', newVarLabel)
+
+lemma L35SeqComp(S': Statement, SV': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S') && Valid(SV')
+	requires Core(S') && Core(SV')
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires IsSeqComp(slipOf(S', varLabel))
+	requires exists b :: newVarLabel == varLabel + [b]
+	requires MatchingSlips(S', SV', varLabel)
+	ensures MatchingSlips(S', SV', newVarLabel)
+	
+lemma L35IF(S': Statement, SV': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S') && Valid(SV')
+	requires Core(S') && Core(SV')
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires IsIF(slipOf(S', varLabel))
+	requires exists b :: newVarLabel == varLabel + [b,1]
+	requires MatchingSlips(S', SV', varLabel)
+	ensures MatchingSlips(S', SV', newVarLabel)
+
+lemma L35DO(S': Statement, SV': Statement, varLabel: Label, newVarLabel: Label)
+	requires Valid(S') && Valid(SV')
+	requires Core(S') && Core(SV')
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	//requires IsDO(slipOf(S', varLabel))
+	requires newVarLabel == varLabel + [2,1,1]
+	requires MatchingSlips(S', SV', varLabel)
+	ensures MatchingSlips(S', SV', newVarLabel)
+
+lemma L36SeqComp(SV': Statement, varLabel: Label, newVarLabel: Label, res: Statement, l: Label, newL: Label)
+	requires Valid(SV') && Valid(res)
+	requires Core(SV') && Core(res)
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	requires IsSeqComp(slipOf(SV', varLabel))
+	requires exists b :: newVarLabel == varLabel + [b] && newL == l + [b]
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	ensures MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+
+lemma L36IF(SV': Statement, varLabel: Label, newVarLabel: Label, res: Statement, l: Label, newL: Label)
+	requires Valid(SV') && Valid(res)
+	requires Core(SV') && Core(res)
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	requires IsIF(slipOf(SV', varLabel))
+	requires exists b :: newVarLabel == varLabel + [b,1] && newL == l + [b]
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	ensures MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+
+lemma L36DO(SV': Statement, varLabel: Label, newVarLabel: Label, res: Statement, l: Label, newL: Label)
+	requires Valid(SV') && Valid(res)
+	requires Core(SV') && Core(res)
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	//requires IsDO(slipOf(SV', varLabel))
+	requires newVarLabel == varLabel + [2,1,1] && newL == l + [1]
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	ensures MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+
+lemma L37SeqComp(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, newL: Label, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
+	requires Core(S) && Core(S') && Core(SV') && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	requires IsSeqComp(slipOf(S, l))
+	requires exists b :: newVarLabel == varLabel + [b] && newL == l + [b]
+	requires MatchingSlips(S, res, l)
+	requires MatchingSlipsToSSA(S, newL, S', newVarLabel)
+	requires MatchingSlips(S', SV', newVarLabel)
+	requires MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+	ensures MatchingSlips(S, res, newL)
+
+lemma L37IF(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, newL: Label, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
+	requires Core(S) && Core(S') && Core(SV') && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	requires IsIF(slipOf(S, l))
+	requires exists b :: newVarLabel == varLabel + [b,1] && newL == l + [b]
+	requires MatchingSlips(S, res, l)
+	requires MatchingSlipsToSSA(S, newL, S', newVarLabel)
+	requires MatchingSlips(S', SV', newVarLabel)
+	requires MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+	ensures MatchingSlips(S, res, newL)
+
+lemma L37DO(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, newL: Label, varLabel: Label, newVarLabel: Label)
+	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
+	requires Core(S) && Core(S') && Core(SV') && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(newL, S)
+	requires ValidLabel(varLabel, S') && ValidLabel(newVarLabel, S')
+	requires ValidLabel(varLabel, SV') && ValidLabel(newVarLabel, SV')
+	requires ValidLabel(l, res) && ValidLabel(newL, res)
+	requires IsDO(slipOf(S, l))
+	requires newVarLabel == varLabel + [2,1,1] && newL == l + [1]
+	requires MatchingSlips(S, res, l)
+	requires MatchingSlipsToSSA(S, newL, S', newVarLabel)
+	requires MatchingSlips(S', SV', newVarLabel)
+	requires MatchingSlipsFromSSA(SV', newVarLabel, res, newL)
+	ensures MatchingSlips(S, res, newL)
+
+lemma {:verify true}L38(SV': Statement, S': Statement, varLabel: Label)
+	requires Valid(SV') && Valid(S')
+	requires Core(SV') && Core(S')
+	requires Substatement(SV', S')
+	requires ValidLabel(varLabel, SV')
+	requires ValidLabel(varLabel, S')
+	requires MatchingSlips(S', SV', varLabel)
+	ensures Substatement(slipOf(SV',varLabel), slipOf(S',varLabel))
+	decreases |varLabel|
+{
+	if varLabel == [] { assert Substatement(slipOf(SV',[]), slipOf(S',[])); }
+	else 
+	{
+	match S' {
+	case Skip =>				assert SV' == Skip;
+	case Assignment(LHS,RHS) =>	match SV' {
+								case Skip =>					assert true;
+								case Assignment(LHS',RHS') =>	assert Subassignment(LHS', RHS', LHS, RHS);
+								case SeqComp(S1',S2') =>		assert false;
+								case IF(B0',Sthen',Selse') =>	assert false;
+								case DO(B',Sloop') =>			assert false;
+								}
+	case SeqComp(S1,S2) =>		match SV' {
+								case Skip =>					assert true;
+								case Assignment(LHS',RHS') =>	assert false;
+								case SeqComp(S1',S2') =>		if varLabel[0] == 1 { L38(S1', S1, varLabel[1..]); } 
+																else { L38(S2', S2, varLabel[1..]); }
+								case IF(B0',Sthen',Selse') =>	assert false;
+								case DO(B',Sloop') =>			assert false;
+								}	
+	case IF(B0,Sthen,Selse) =>	match SV' {
+								case Skip => assert true;
+								case Assignment(LHS',RHS') =>	assert false;
+								case SeqComp(S1',S2') =>		assert false;								
+								case IF(B0',Sthen',Selse') =>	assert SameBooleanExpressions(B0, B0') by { assert Substatement(SV', S'); }
+																if varLabel[0] == 1 { L38(Sthen', Sthen, varLabel[1..]); }
+																else { L38(Selse', Selse, varLabel[1..]); }
+								case DO(B',Sloop') =>			assert false;
+								}
+	case DO(B,Sloop) =>			match SV' {
+								case Skip =>					assert true;
+								case Assignment(LHS',RHS') =>	assert false;
+								case SeqComp(S1',S2') =>		assert false;								
+								case IF(B0',Sthen',Selse') =>	assert false;
+								case DO(B',Sloop') =>			assert SameBooleanExpressions(B, B') by { assert Substatement(SV', S'); }
+																L38(Sloop', Sloop, varLabel[1..]);
+								}
+	}
+	}
+}
+
+lemma L39(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Core(S) && Valid(res) && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(l, res)
+	requires IsSeqComp(slipOf(S,l)) && IsSeqComp(slipOf(res,l))
+	requires ValidLabel(l+[1], S) && ValidLabel(l+[1], res)
+	requires ValidLabel(l+[2], S) && ValidLabel(l+[2], res)
+	requires MatchingSlips(S, res, l)
+	requires Substatement(slipOf(res, l+[1]), slipOf(S, l+[1]))
+	requires Substatement(slipOf(res, l+[2]), slipOf(S, l+[2]))
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+
+lemma L40(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Core(S) && Valid(res) && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(l, res)
+	requires IsIF(slipOf(S,l)) && IsIF(slipOf(res,l))
+	requires ValidLabel(l+[1], S) && ValidLabel(l+[1], res)
+	requires ValidLabel(l+[2], S) && ValidLabel(l+[2], res)
+	requires MatchingSlips(S, res, l)
+	requires Substatement(slipOf(res, l+[1]), slipOf(S, l+[1]))
+	requires Substatement(slipOf(res, l+[2]), slipOf(S, l+[2]))
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+
+lemma L41(S: Statement, res: Statement, l: Label)
+	requires Valid(S) && Core(S) && Valid(res) && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(l, res)
+	requires IsDO(slipOf(S,l)) && IsDO(slipOf(res,l))
+	requires ValidLabel(l+[1], S) && ValidLabel(l+[1], res)
+	requires MatchingSlips(S, res, l)
+	requires Substatement(slipOf(res, l+[1]), slipOf(S, l+[1]))
+	ensures Substatement(slipOf(res, l), slipOf(S, l))
+	
+lemma L42(SV': Statement, varLabel: Label, res: Statement, l: Label, X: seq<Variable>, XLsToSSA: seq<set<Variable>>)
+	requires Valid(SV') && Core(SV') && Valid(res) && Core(res)
+	requires RemoveEmptyAssignments(Rename(SV', XLsToSSA, X)) == res
+	requires ValidLabel(l, res)
+	requires ValidLabel(varLabel, SV')
+	requires IsAssignment(slipOf(SV', varLabel))
+	requires IsAssignment(slipOf(res, l))
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	ensures RemoveEmptyAssignments(Rename(slipOf(SV', varLabel), XLsToSSA, X)) == slipOf(res, l) // slipOfSV': sum2 := 0  slipOfRes: sum := 0
+
+lemma L43(S': Statement, varLabel: Label, S: Statement, l: Label, X: seq<Variable>, XLsToSSA: seq<set<Variable>>)
+	requires Valid(S') && Core(S') && Valid(S) && Core(S)
+	requires RemoveEmptyAssignments(Rename(S', XLsToSSA, X)) == S
+	requires ValidLabel(l, S)
+	requires ValidLabel(varLabel, S')
+	requires IsAssignment(slipOf(S', varLabel))
+	requires IsAssignment(slipOf(S, l))
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	ensures RemoveEmptyAssignments(Rename(slipOf(S', varLabel), XLsToSSA, X)) == slipOf(S, l) // slipOfS': sum2 := 0  slipOfS: sum := 0
+
+lemma L44(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, varLabel: Label, X: seq<Variable>, XLsToSSA: seq<set<Variable>>)
+	requires Valid(S) && Valid(S') && Valid(SV') && Valid(res)
+	requires Core(S) && Core(S') && Core(SV') && Core(res)
+	requires ValidLabel(l, S) && ValidLabel(varLabel, S') && ValidLabel(varLabel, SV') && ValidLabel(l, res)
+	requires IsAssignment(slipOf(S, l)) && IsAssignment(slipOf(S', varLabel)) && IsAssignment(slipOf(SV', varLabel)) && IsAssignment(slipOf(res, l))
+	requires MatchingSlips(S, res, l)
+	requires MatchingSlipsToSSA(S, l, S', varLabel)
+	requires MatchingSlips(S', SV', varLabel)
+	requires MatchingSlipsFromSSA(SV', varLabel, res, l)
+	requires Substatement(SV', S')
+	requires RemoveEmptyAssignments(Rename(slipOf(SV', varLabel), XLsToSSA, X)) == slipOf(res, l)
+	requires RemoveEmptyAssignments(Rename(slipOf(S', varLabel), XLsToSSA, X)) == slipOf(S, l)
+	ensures Substatement(slipOf(res, l), slipOf(S, l))

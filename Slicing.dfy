@@ -8,10 +8,32 @@ method {:verify false}Slice(S: Statement, V: set<Variable>) returns (slidesSV: s
 {
 	var cfg := ComputeCFG(S);
 	//var pdgN, pdgE := ComputePDG(S, cfg); // TODO: Change to PDG
-	var slideDG := ComputeSlideDG(S, cfg.0, cfg.1);
+	var slideDG := ComputeSlideDG(S, cfg);
 
 	slidesSV := ComputeSlice(S, V, slideDG, cfg);
 }
+
+/*method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
+	requires Core(S)
+	requires forall s :: s in slideDG.1 ==> s in slideDG.2
+	requires forall s1,s2 :: s1 in slideDG.2 && s2 in slideDG.2[s1]  ==> s2 in slideDG.1
+	ensures forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
+{
+	slidesSV := FindFinalDefSlides(S, slideDG, cfg, V);
+	
+	var worklist := slidesSV;
+	var visited := {};
+	
+	while (|worklist| > 0)
+	{
+		var slide :| slide in worklist;
+		
+		worklist, visited := worklist - {slide}, visited + {slide};
+		var newlyReachable := slideDG.2[slide] - slidesSV - {slide};
+		slidesSV := slidesSV + newlyReachable; // + slideDG.2[slide];
+		worklist := worklist + newlyReachable; // + (slideDG.2[slide] - visited)
+	}
+}*/
 
 method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
 	requires Core(S)

@@ -5,7 +5,7 @@ include "PDG.dfy"
 
 // VarSlideDG Definitions:
 datatype VarSlideTag = Phi | Regular
-type VarSlide = (Variable, VarSlideTag)
+type VarSlide = (Variable, VarSlideTag, Label)
 type VarEdge = (VarSlide, VarSlide, set<Variable>)
 type VarSlideDG = (Statement, set<VarSlide>, map<VarSlide, set<VarSlide>>) // map from node to it's predecssors
 

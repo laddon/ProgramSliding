@@ -5,6 +5,7 @@ include "CorrectnessSSA.dfy"
 include "SlideDG.dfy"
 include "VarSlideDG.dfy"
 include "Slicing.dfy"
+include "ProofUtil.dfy"
 
 class VariablesSSA {
 
@@ -1461,6 +1462,7 @@ method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variab
 	ensures Valid(res)
 
 	ensures MergedVars1(SV', res, XLsToSeq(X, XLs, vsSSA), X)
+	/////////////////ensures forall l :: l in allLabelsOf(S) ==> LabelOf2(VarLabelOf(S,S', l))==l
 	//ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
 	//ensures Substatement(res, S) 
 {
@@ -1522,9 +1524,9 @@ function method {:verify false} RemoveEmptyAssignments(S: Statement): Statement
 		case Assignment(LHS,RHS) => 
 			if |LHS| == 0 then Skip else S
 		case SeqComp(S1,S2) =>
-			if IsEmptyAssignment(S1) then
+			if IsEmptyAssignmentFunc(S1) then
 				RemoveEmptyAssignments(S2)
-			else if IsEmptyAssignment(S2) then
+			else if IsEmptyAssignmentFunc(S2) then
 				RemoveEmptyAssignments(S1) 
 			else
 				SeqComp(RemoveEmptyAssignments(S1), RemoveEmptyAssignments(S2))
@@ -1536,7 +1538,7 @@ function method {:verify false} RemoveEmptyAssignments(S: Statement): Statement
 	}
 }
 
-function method {:verify false}IsEmptyAssignment(S: Statement): bool // changed from predicate to function method, because called in RemoveEmptyAssignments
+function method {:verify false}IsEmptyAssignmentFunc(S: Statement): bool // changed from predicate to function method, because called in RemoveEmptyAssignments
 	requires Core(S) && Valid(S)
 {
 	match S {
@@ -1605,6 +1607,8 @@ Illegal merge!
 
 predicate {:verify false}MergedVars1(S: Statement, T: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
 	requires NoSelfAssignments(S)
+	// ensures that each label of original S is the same label of T (res)
+	// S=SV', T=res
 {
 	var R := Rename(S, XLs, X);
 
@@ -1621,7 +1625,8 @@ predicate {:verify false}MergedVars(S: Statement, T: Statement, XLs: seq<set<Var
 function method {:verify true}Rename(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>): (S': Statement)
 	requires Core(S) && Valid(S)
 	ensures Core(S') && Valid(S')
-{
+	ensures allLabelsOf(S) == allLabelsOf(S') 
+{ 
 	match S {
 		case Assignment(LHS,RHS) => RenameAssignment(LHS, RHS, XLs, X)
 									//x1,y2,z3 = 1,2,z4   x,y,z,=1,2,z    x,y=1,2  
@@ -1634,6 +1639,7 @@ function method {:verify true}Rename(S: Statement, XLs: seq<set<Variable>>, X: s
 
 function method {:verify true}RenameAssignment(LHS: seq<Variable>, RHS: seq<Expression>, XLs: seq<set<Variable>>, X: seq<Variable>): (S: Statement)
 	requires forall v1,v2 :: v1 in LHS && v2 in LHS && v1 != v2 ==> instanceToVariable(v1, XLs, X) != instanceToVariable(v2, XLs, X)
+	ensures IsAssignment(S)
 // rename and remove self assignments
 //x1,y2,z3 = 1,2,z4   x,y,z,=1,2,z    x,y=1,2  
 /*{
@@ -1712,7 +1718,18 @@ function method {:verify false}SelfAssignmentOnly(LHS: seq<Variable>, RHS: seq<E
 			SelfAssignmentOnly(LHS[1..], RHS[1..])
 }*/
 
-predicate {:verify false}NoSelfAssignments(S: Statement)
+predicate NoEmptyAssignments(S: Statement)
+{
+	match S {
+		case Assignment(LHS,RHS) => LHS != [] && RHS != []
+		case SeqComp(S1,S2) =>		NoEmptyAssignments(S1) && NoEmptyAssignments(S2)
+		case IF(B0,Sthen,Selse) =>	NoEmptyAssignments(Sthen) && NoEmptyAssignments(Selse)
+		case DO(B,S1) =>			NoEmptyAssignments(S1)
+		case Skip =>				true
+	}
+}
+
+predicate NoSelfAssignments(S: Statement)
 {
 	match S {
 		case Assignment(LHS,RHS) => NoSelfAssignmentsInAssignment(LHS, RHS)
@@ -1723,7 +1740,7 @@ predicate {:verify false}NoSelfAssignments(S: Statement)
 	}
 }
 
-predicate {:verify false}NoSelfAssignmentsInAssignment(LHS: seq<Variable>, RHS: seq<Expression>)
+predicate NoSelfAssignmentsInAssignment(LHS: seq<Variable>, RHS: seq<Expression>)
 /*{
 	if LHS == [] then true
 	else

@@ -27,6 +27,17 @@ predicate IsAssignment(S: Statement)
 	exists LHS,RHS :: S == Assignment(LHS,RHS)
 }
 
+////////////////////////////////////////////////////// FIX - different types of LHS and RHS
+predicate IsSelfAssignment(S: Statement)
+{
+	true//exists LHS,RHS :: S == Assignment(LHS,RHS) && LHS == RHS
+}
+
+predicate IsEmptyAssignment(S: Statement)
+{
+	exists LHS,RHS :: S == Assignment(LHS,RHS) && LHS == [] && RHS == []
+}
+
 predicate IsIF(S: Statement)
 {
 	exists B,Then,Else :: S == IF(B, Then, Else)

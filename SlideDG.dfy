@@ -1,7 +1,5 @@
-include "Definitions.dfy"
-include "Util.dfy"
 include "PDG.dfy"
-
+//include "ProofUtil.dfy"
 
 // SlideDG Definitions:
 type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNode
@@ -107,18 +105,64 @@ method ComputeSlideDependence(Slides: set<Slide>, Sm: Slide) returns (slideDepSl
 
 method ComputeSlide(S: Statement, v: Variable, l: Label) returns (n: Slide)
 
-function slidesOf(S: Statement, V: set<Variable>) : set<Slide>
+function slipOf(S: Statement, l: Label): Statement
+	reads *
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l, S)
+	ensures Valid(slipOf(S, l)) && Core(slipOf(S, l))
+	ensures l == [] ==> slipOf(S, l) == S
+	ensures l != [] ==> slipOf(S, l) < S
+	decreases l
+{
+	if l == [] then  S
+	else
+		match S {
+			case Assignment(LHS,RHS) => Skip//assert false - Doesn't work!!!
+			case SeqComp(S1,S2) =>		if l[0] == 1 then slipOf(S1, l[1..]) else slipOf(S2, l[1..])
+			case IF(B0,Sthen,Selse) =>	if l[0] == 1 then slipOf(Sthen, l[1..]) else slipOf(Selse, l[1..])
+			case DO(B,S1) =>			slipOf(S1, l[1..])
+			case Skip =>				Skip//assert false - Doesn't work!!!
+		}
+}
+
+function allSlidesOf(S: Statement) : set<Slide>
 	reads *
 	requires Valid(S)
 	requires Core(S)
 {
-	slidesOf'(S, V, [], {})
+	slidesOf(S, def(S))
 }
 
-function slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>) : set<Slide>
+predicate ValidLabel(l: Label, S: Statement)
 	reads *
 	requires Valid(S)
 	requires Core(S)
+{
+	if l == [] then true
+	else
+	match S {
+	case Skip =>				false
+	case Assignment(LHS,RHS) =>	false
+	case SeqComp(S1,S2) =>		if l[0] == 1 then ValidLabel(l[1..], S1) else ValidLabel(l[1..], S2)
+	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then ValidLabel(l[1..], Sthen) else ValidLabel(l[1..], Selse)
+	case DO(B,Sloop) =>			if l[0] == 1 then ValidLabel(l[1..], Sloop) else false
+	}
+}
+
+function {:verify false}slidesOf(S: Statement, V: set<Variable>) : set<Slide>
+	reads *
+	requires Valid(S)
+	requires Core(S)
+	ensures forall s :: s in slidesOf(S, V) ==> assume s.0 != CFGNode.Entry && s.0 != CFGNode.Exit; match s.0 { case Node(l1) => ValidLabel(l1, S) && !IsEmptyAssignment(slipOf(S, l1))}
+{
+	slidesOf'(S, V, [], {})
+}
+
+function {:verify false}slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>): (slides: set<Slide>)
+	reads *
+	requires Valid(S)
+	requires Core(S)
+	ensures forall s :: s in slides ==> assume s.0 != CFGNode.Entry && s.0 != CFGNode.Exit; match s.0 { case Node(l1) => ValidLabel(l1, S) && !IsEmptyAssignment(slipOf(S, l1))}
 {
 	match S {
 	case Skip => {}

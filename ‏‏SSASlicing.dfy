@@ -6,6 +6,7 @@ include "SlideDG.dfy"
 include "VarSlideDG.dfy"
 include "SSA.dfy"
 include "Slicing.dfy"
+include "ProofUtil.dfy"
 
 function {:verify true}SliceOf(S: Statement, V: set<Variable>): (set<Slide>, Statement)
 	reads *
@@ -22,8 +23,8 @@ function {:verify true}SliceOf(S: Statement, V: set<Variable>): (set<Slide>, Sta
 }
 
 method {:verify true}SSASlice(S: Statement, V: set<Variable>) returns (res: Statement)
-	requires Valid(S)
-	requires Core(S)
+	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
+	requires Valid(S) && Core(S)
 	decreases *
 	ensures SliceOf(S,V).1 == res 
 {
@@ -33,7 +34,7 @@ method {:verify true}SSASlice(S: Statement, V: set<Variable>) returns (res: Stat
 }
 
 method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
-	//requires NoSelfAssignments(S) // requires there are no self assignments TODO
+	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
 	requires Valid(S) && Core(S)
 	requires VarSlideDGOf(varSlideDG, S)
 	decreases *
@@ -71,6 +72,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 
 	// Flow-Insensitive Slice
 	var SV' := ComputeFISlice(S', V', varSlideDGS');
+	assume Substatement(SV', S'); /////////////////////////////////////////////////////////////////////
 	ghost var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V');
 	//assert forall Sm :: Sm in varSlidesSV <==> (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', Sm, Sn, varSlideDGS'.1));	 // Implement VarSlideDGReachable
 	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
@@ -90,7 +92,9 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 	var XL1i := liveOnEntryXSeq;
 	var XL2f := liveOnExitXSeq;
 	res := FromSSA(SV', X, XL1i, XL2f, Y, XLs, vsSSA, V, S', V', varSlideDGS');
-	
+	var XLsSeq := XLsToSeq(X, XLs, vsSSA);
+	assert res == RemoveEmptyAssignments(Rename(SV', XLsSeq, X)); // FromSSA Post-condition
+
 	//assert forall U: set<Variable> :: slidesOf(res, U) <= slidesOf(S, U) <= slidesOf(S, def(S));
 
 	assert Substatement(res, S);
@@ -110,7 +114,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 			//assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV);
 			assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV;
 
-			LemmaVarSlidesSVToRes(slide, S, S', SV', res, slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA);
+			LemmaVarSlidesSVToRes(slide, S, S', SV', res, slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA, XLsSeq);
 			//assert forall slide :: slide in /*SlideDGOf(S, CFGOf(S)).1*/ slidesOf(S, def(S)) ==> (VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)));
 			assert VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S));
 		}
@@ -127,27 +131,9 @@ lemma LemmaIdenticalSlices(S: Statement, S1: Statement, S2: Statement)
 	requires allSlidesOf(S1) == allSlidesOf(S2) // check multiple assignments
 	ensures S1 == S2
 
-function slipOf(S: Statement, l: Label): Statement
-	reads *
-	requires Valid(S) && Core(S)
-	requires ValidLabel(l, S)
-	ensures Valid(slipOf(S, l)) && Core(slipOf(S, l))
-	ensures l == [] ==> slipOf(S, l) == S
-	ensures l != [] ==> slipOf(S, l) < S
-	decreases l
-{
-	if l == [] then  S
-	else
-		match S {
-			case Assignment(LHS,RHS) => Skip//assert false - Doesn't work!!!
-			case SeqComp(S1,S2) =>		if l[0] == 1 then slipOf(S1, l[1..]) else slipOf(S2, l[1..])
-			case IF(B0,Sthen,Selse) =>	if l[0] == 1 then slipOf(Sthen, l[1..]) else slipOf(Selse, l[1..])
-			case DO(B,S1) =>			slipOf(S1, l[1..])
-			case Skip =>				Skip//assert false - Doesn't work!!!
-		}
-}
-
-lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, X: seq<Variable>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, vsSSA: VariablesSSA)
+lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, X: seq<Variable>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, vsSSA: VariablesSSA, XLs: seq<set<Variable>>)
+	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
+	requires ValidXLs(S, XLs, X)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
@@ -155,6 +141,8 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 	requires ValidVsSSA(vsSSA)
 	requires slide in slidesOf(S, def(S))
 	requires Substatement(res, S)
+	requires Substatement(SV', S')
+	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X)) // FromSSA Post-condition
 	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1));
 	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1))
 	requires slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
@@ -165,7 +153,7 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 
 		if (vSlide in varSlidesSV)
 		{
-			L60(slide, vSlide, S, S', SV', res, slidesSV, varSlidesSV, V, V', varSlideDGS');
+			L60(slide, vSlide, S, S', SV', res, slidesSV, varSlidesSV, V, V', varSlideDGS', X, XLs);
 			assert slide in slidesOf(res, def(S));
 		}
 		else // vSlide !in varSlidesS
@@ -176,7 +164,9 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 	}
 }
 
-lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG)
+lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, X: seq<Variable>, XLs: seq<set<Variable>>)
+	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
+	requires ValidXLs(S, XLs, X)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
@@ -184,49 +174,109 @@ lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 	requires slide in slidesOf(S, def(S))
 	requires vSlide == VarSlideOf(S, S', slide) && vSlide in varSlidesSV
 	requires Substatement(res, S)
+	requires Substatement(SV', S')
 	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGOf(S, CFGOf(S)).1));
 	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1))
 	requires slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
+	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X)) // FromSSA Post-condition
 	ensures slide in slidesOf(res, def(S))
 {
-		assert slide in slidesOf(S, def(S));
-		assert slide in slidesSV by { assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV; }
-		assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
-		assert vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1);
+	assert slide in slidesOf(S, def(S));
+	assert slide in slidesSV by { assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV; }
+	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1));
+	assert vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, varSlideDGS'.1);
 					
-		var v := slide.1;
-		match slide.0 {
-		case Node(l) => 
-			var vLabel := VarLabelOf(S, S', l); ////////////////////// לבדוק אם נכון
-			assert ValidLabel(l, res) && IsAssignment(slipOf(res, l)) && v in def(slipOf(res, l)) by {
-				assert ValidLabel(l, res) by {
-					assert Substatement(res, S);
-					assert ValidLabel(l, S) by { assert slide in slidesOf(S, def(S)); }
-				}
-				assert IsAssignment(slipOf(res, l)) by {
-					assert IsAssignment(slipOf(S, l));
-					//assert IsAssignment(slipOf(SV', vLabel));
-					//assert MatchingSlipsFromSSA(SV', vLabel, res, l);
-				}
-				assert v in def(slipOf(res, l)) by {
-					assert Substatement(res, S);
-					/*
-					// vLabel of Regular Assignment (vSlide), v' in LHS of vSlide <==> Rename(v') in def(slipOf(res, l))
-					// vSlide.1 == Regular && v' in def(slipOf(SV', vLabel) <==> Rename(v') in def(slipOf(res, l))
-					L62(S, SV', res);
-					// L62(S, SV', res):
-					// forall l,l',v,v' :: ValidLabel(l, S) && IsAssignment(slipOf(S, l)) && l' corresponding to l (function) && 
-					//		ValidLabel(l', SV') && IsAssignment(slipOf(SV', l')) && v == Rename(v') ==>
-					//		ValidLabel(l, res) && IsAssignment(slipOf(res, l)) &&
-					//		(v in def(slipOf(res, l)) <==> v' in def(slipOf(SV', l')))
-					*/
-				}
+	var v := slide.1;
+	match slide.0 {
+	case Node(l) => 
+		var vLabel := VarLabelOf(S, S', l);
+		assert ValidLabel(vLabel, S');
+			
+		assert ValidLabel(l, res) && IsAssignment(slipOf(res, l)) && v in def(slipOf(res, l)) by {
+			assert ValidLabel(l, res) by {
+				assert ValidLabel(l, S);
+				ghost var allLabelsRenameSV' := allLabelsOf(Rename(SV', XLs, X));
+				ghost var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(SV', XLs, X), allLabelsRenameSV');
+				IdenticalLabels(S, S', SV', res, l, vLabel, LabelOf(selfEmptyLabelsSV', vLabel), XLs, X, selfEmptyLabelsSV');
 			}
-		case Exit => assert slide in slidesOf(res, def(S)); // מיותר?
-		case Entry => assert slide in slidesOf(res, def(S)); // מיותר?
-		}		
-	
+			assert IsAssignment(slipOf(res, l)) by {
+				assert ValidLabel(l, S);
+				assume IsAssignment(slipOf(S, l));
+				assert Substatement(res, S);
+				assume !IsSkip(slipOf(res, l));
+				//assume ValidLabel(vLabel, SV');
+				//assume MatchingSlipsFromSSA(SV', vLabel, res, l);
+				assume MatchingSlips(S, res, l);
+			}
+			assert v in def(slipOf(res, l)) by {
+				assert Substatement(res, S);
+			}
+		}
+	case Exit => assert slide in slidesOf(res, def(S)); // מיותר?
+	case Entry => assert slide in slidesOf(res, def(S)); // מיותר?
+	}		
 }
+
+predicate ValidXLs(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+{
+	|X| == |XLs| &&
+	(forall i,j :: 0 <= i < j < |XLs| ==> XLs[i] !! XLs[j]) && // or: XLs[i] * XLs[j] == {}
+	(forall s :: s in XLs ==> s !! glob(S)) // or: s * glob(S) == {}
+}
+
+lemma IdenticalLabels(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, varLabel: Label, l': Label, XLs: seq<set<Variable>>, X: seq<Variable>, selfEmptyLabelsSV': set<Label>)
+	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
+	requires ValidXLs(S, XLs, X)
+	requires Valid(S) && Core(S)
+	requires Valid(S') && Core(S')
+	requires Valid(SV') && Core(SV')
+	requires Valid(res) && Core(res)
+	requires ValidLabel(l, S)
+	requires varLabel == VarLabelOf(S, S', l)
+	requires ValidLabel(varLabel, SV')
+	requires l' == LabelOf(selfEmptyLabelsSV', varLabel)
+	requires ValidLabel(l', res) // ?
+	requires l' == LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l))
+	//requires S == RemoveEmptyAssignments(Rename(S', XLs, X)) // ?
+	requires Substatement(SV', S')
+	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X))
+
+	ensures l == LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l))
+{
+	/*assert allLabelsOf(SV') == allLabelsOf(Rename(SV', XLs, X)) by {
+		forall l1 | l1 in allLabelsOf(SV') ensures l1 in allLabelsOf(Rename(SV', XLs, X)) {
+			L70(l1, SV', XLs, X);
+		}
+		forall l1 | l1 in allLabelsOf(Rename(SV', XLs, X)) ensures l1 in allLabelsOf(SV') {
+			L71(l1, SV', XLs, X);
+		}
+	}*/
+	assert LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l)) == l by 
+	{
+		/*
+
+						;
+		i4,s4:=i1,s2;		while
+		*/
+
+		// קבוצת ה; שהולכים להמחק ב LabelOf
+		// זה בדיוק הקבוצה שהוספנו ב varLabelOf
+		assert |l| <= |varLabel|;
+		// l =			[2,2,2,    1,1]
+		// varLabel =	[2,2,2,2,1,1,1]
+		// l' =			[2,2,2,1,1]
+	}
+}
+
+lemma L70(l1: Label, SV': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(SV') && Core(SV')
+	requires l1 in allLabelsOf(SV')
+	ensures l1 in allLabelsOf(Rename(SV', XLs, X))
+
+lemma L71(l1: Label, SV': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(SV') && Core(SV')
+	requires l1 in allLabelsOf(Rename(SV', XLs, X))
+	ensures l1 in allLabelsOf(SV')
 
 lemma L62(S: Statement, SV': Statement, res: Statement)
 /*	ensures forall l,l',v,v' :: ValidLabel(l, S) && IsAssignment(slipOf(S, l)) && CorrespondingLabels(l, l', S) && 
@@ -257,6 +307,7 @@ lemma L61(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 				var u' := vSlide.0;
 				var varLabel := vSlide.2;
 				/////////////////// לבדוק את השורות הבאות
+				//assert ValidLabel(l, S);
 				assert ValidLabel(varLabel, S') && IsAssignment(slipOf(S', varLabel)) && u' in def(slipOf(S', varLabel));
 				assert !ValidLabel(varLabel, SV') || IsSkip(slipOf(SV', varLabel)) || (IsAssignment(slipOf(SV', varLabel)) && u' !in def(slipOf(SV', varLabel)));
 			}
@@ -474,7 +525,7 @@ lemma {:verify false}PathCorrespondence(slideDG: SlideDG, varSlideDG: VarSlideDG
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires SlideDGReachable(slideDG, slide1, slide2, slideDG.1)
-	//requires connection between SV and SV'
+	//requires connection between S and S'
 	ensures VarSlideDGReachable(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), varSlideDG.1)
 	
 	
@@ -505,414 +556,6 @@ lemma {:verify false}PathCorrespondence(slideDG: SlideDG, varSlideDG: VarSlideDG
 					v' = i8
 					finalDefVaSlides = {i9,i10}*/
 
-
-
-function {:verify false}RegularPredecessorSlides(varSlide: VarSlide, varSlideDG: VarSlideDG, unvisitedVarSlides: set<VarSlide>): set<VarSlide>
-	requires varSlide in varSlideDG.2
-	requires unvisitedVarSlides <= varSlideDG.1
-	requires forall p :: p in varSlideDG.2[varSlide] ==> p in varSlideDG.1
-	requires forall p :: p in varSlideDG.2[varSlide] ==> p in unvisitedVarSlides
-	requires forall vSlide :: vSlide in unvisitedVarSlides ==> vSlide in varSlideDG.2
-	decreases unvisitedVarSlides
-{
-	var predecessors := varSlideDG.2[varSlide];
-	assert forall p :: p in predecessors ==> p in varSlideDG.2;
-
-	(set vSlide | vSlide in predecessors && vSlide.1 == Regular) + 
-	(set vSlide1, vSlide2 | vSlide1 in predecessors && vSlide1.1 == Phi && vSlide1 in unvisitedVarSlides && vSlide2 in RegularPredecessorSlides(vSlide1, varSlideDG, unvisitedVarSlides - {vSlide1}) :: vSlide2)
-}
-
-function {:verify false}SlideOf(S: Statement, S': Statement, varSlide: VarSlide): Slide
-
-
-function {:verify false}VarLabelOfSlide(S: Statement, S': Statement, slide: Slide): Label
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-{
-	match slide.0 { 
-		case Node(l) => VarLabelOf(S, S', l)
-		case Entry => [] // מיותר! הוספתי רק כדי שירוץ
-		case Exit => [] // מיותר! הוספתי רק כדי שירוץ
-	}
-}
-
-function {:verify false}VarSlideOf(S: Statement, S': Statement, slide: Slide): VarSlide
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-{
-	match slide.0 { 
-		case Node(l) => var varLabel := VarLabelOf(S, S', l); var i := InstanceOf(S', varLabel); (i, Regular, varLabel)
-		case Entry => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
-		case Exit => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
-	}
-}
-
-function {:verify false}VarLabelOf(S: Statement, S': Statement, l: Label): Label
-	//requires S' == ToSSA(S) //////
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-	ensures |VarLabelOf(S, S', l)| >= 1 && |VarLabelOf(S, S', l)| <= maxLabelSize(S')
-	ensures ValidLabel(VarLabelOf(S, S', l), S')
-{
-	match S {
-	case Skip =>				[]		
-	case Assignment(LHS,RHS) =>	match S' {
-								case Assignment(LHS',RHS') => []
-								}
-	case SeqComp(S1,S2) =>		match S' {
-								case SeqComp(S1',S2') => if l[0] == 1 then [1] + VarLabelOf(S1, S1', l[1..]) else [2] + VarLabelOf(S2, S2', l[1..])
-								}	
-	case IF(B0,Sthen,Selse) =>	match S' {							
-								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1,1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2,1] + VarLabelOf(Selse, Selse', l[1..]) // changed 16/12/18
-								//case IF(B0',Sthen',Selse') => if l[0] == 1 then [1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2] + VarLabelOf(Selse, Selse', l[1..])
-								}
-	case DO(B,Sloop) =>			match S' {
-								// S1' is the phi assignment and S2' is the DO
-								// we should add another [2] in order to go to the loop
-								case SeqComp(S1',S2') => match S2' {
-														 case DO(B',Sloop') => [2,1,1] + VarLabelOf(Sloop, Sloop', l[1..]) // changed 16/12/18
-														 //case DO(B',Sloop') => [2] + [1] + VarLabelOf(Sloop, Sloop', l[1..]) 
-														 }
-								}
-	}
-}
-
-function {:verify false}InstanceOf(S': Statement, varLabel: Label): Variable
-/////////////////////////// Should add v: Variable to the function and return LHS' * vsSSA.getInstancesOf(v).
-	reads *
-	requires Valid(S')
-	requires Core(S')
-	requires |varLabel| >= 1 && |varLabel| <= maxLabelSize(S')
-{
-	match S' {
-	case Skip =>					""
-	case Assignment(LHS',RHS') =>	assume |LHS'| >= 1; LHS'[0]
-	case SeqComp(S1',S2') =>		if varLabel[0] == 1 then InstanceOf(S1', varLabel[1..]) else InstanceOf(S2', varLabel[1..])
-	case IF(B0',Sthen',Selse') =>	""//if varLabel[0] == 1 then InstanceOf(Sthen', varLabel[1..]) else InstanceOf(Selse', varLabel[1..])
-	case DO(B',Sloop') =>			""//InstanceOf(Sloop', varLabel[1..])
-	}
-}
-
-function {:verify false}varStatementOf(varSlides: set<VarSlide>, S: Statement): Statement
-
-function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
-	reads *
-	requires Valid(S)
-	requires Core(S)
-	//requires forall slide :: slide in allSlidesOf(S) && exists l :: slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
-	requires forall slide :: exists l :: slide in allSlidesOf(S) && slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
-	requires slides <= allSlidesOf(S)
-	ensures Core(statementOf(slides, S))
-	ensures Valid(statementOf(slides, S))
-	ensures Substatement(statementOf(slides, S), S)
-{
-//Slide = (CFGNode, Variable, set<CFGNode>)
-//CFGNode = Node(l:Label) | Entry | Exit
-
-	if slides == {} then Skip
-	else
-	var slide :| slide in slides;
-	match slide.0 {
-	case Node(l) => 	assert slide in allSlidesOf(S);
-						assert ValidLabel(l, S);
-						var S' := statementOfSlide(slide, l, S);
-						assert Substatement(S', S);
-						var rest := statementOf(slides - {slide}, S);
-						assert Substatement(rest, S);
-						mergeStatements(S', rest, S)
-	case Entry =>		Skip // ?
-	case Exit =>		Skip // ?
-	}
-}
-
-function {:verify true}allSlidesOf(S: Statement) : set<Slide>
-	reads *
-	requires Valid(S)
-	requires Core(S)
-{
-	slidesOf(S, def(S))
-}
-
-predicate {:verify true}ValidLabel(l: Label, S: Statement)
-	reads *
-	requires Valid(S)
-	requires Core(S)
-{
-	if l == [] then true
-	else
-	match S {
-	case Skip =>				false
-	case Assignment(LHS,RHS) =>	false
-	case SeqComp(S1,S2) =>		if l[0] == 1 then ValidLabel(l[1..], S1) else ValidLabel(l[1..], S2)
-	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then ValidLabel(l[1..], Sthen) else ValidLabel(l[1..], Selse)
-	case DO(B,Sloop) =>			if l[0] == 1 then ValidLabel(l[1..], Sloop) else false
-	}
-}
-
-function {:verify true}maxLabelSize(S: Statement): int
-	reads *
-	requires Valid(S)
-	requires Core(S)
-{
-	match S {
-	case Skip => 0
-	case Assignment(LHS,RHS) =>	0
-	case SeqComp(S1,S2) =>		1 + max(maxLabelSize(S1), maxLabelSize(S2))
-	case IF(B0,Sthen,Selse) =>	1 + max(maxLabelSize(Sthen), maxLabelSize(Selse))
-	case DO(B,Sloop) =>			1 + maxLabelSize(Sloop)
-	}	
-}
-
-function max(x: int, y: int): int
-{
-	if x > y then x else y
-}
-
-function {:verify false}statementOfSlide(slide: Slide, l: Label, S: Statement): Statement
-	reads *
-	requires Valid(S)
-	requires Core(S)
-	requires ValidLabel(l, S)
-	ensures Core(statementOfSlide(slide, l, S))
-	ensures Valid(statementOfSlide(slide, l, S))
-	ensures Substatement(statementOfSlide(slide, l, S), S)
-{
-	if l == [] then S
-	else
-	match S {
-	case Skip => Skip
-	case Assignment(LHS,RHS) => S
-	case SeqComp(S1,S2) =>		if l[0] == 1 then SeqComp(statementOfSlide(slide, l[1..], S1), Skip)  else SeqComp(Skip, statementOfSlide(slide, l[1..], S2))
-	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then IF(B0, statementOfSlide(slide, l[1..], Sthen), Skip) else IF(B0, Skip, statementOfSlide(slide, l[1..], Selse))
-	case DO(B,Sloop) =>			DO(B, statementOfSlide(slide, l[1..], Sloop))
-	}
-}
-
-function {:verify false}mergeStatements(S1: Statement, S2: Statement, S: Statement) : Statement
-	reads *
-	requires Valid(S1)
-	requires Valid(S2)
-	requires Valid(S)
-	requires Core(S)
-	requires Core(S1)
-	requires Core(S2)
-	requires Substatement(S1, S) && Substatement(S2, S) 
-	ensures Valid(mergeStatements(S1, S2, S))
-	ensures Core(mergeStatements(S1, S2, S))
-	ensures Substatement(mergeStatements(S1, S2, S), S)
-{
-	match S {
-	case Skip =>					Skip
-	case Assignment(LHS',RHS') =>	match S1 {
-									case Skip =>					S2
-									case Assignment(LHS1,RHS1) =>	match S2 {
-																	case Skip => S1
-																	case Assignment(LHS2,RHS2) => var LR := mergeAssignments(LHS1, LHS2, RHS1, RHS2, {}); Assignment(LR.0, LR.1)
-																	}
-									}
-	case SeqComp(S1',S2') =>		match S1 {
-									case Skip =>					S2
-									case SeqComp(S11,S12) =>		match S2 {
-																	case Skip => S1
-																	case SeqComp(S21,S22) => SeqComp(mergeStatements(S11, S21, S1'), mergeStatements(S12, S22, S2'))
-																	}
-									}
-	case IF(B',Sthen',Selse') =>	match S1 {
-									case Skip =>					S2
-									case IF(B1,Sthen1,Selse1) =>	match S2 {
-																	case Skip => S1
-																	case IF(B2,Sthen2,Selse2) => IF(B1, mergeStatements(Sthen1, Sthen2, Sthen'), mergeStatements(Selse1, Selse2, Selse'))
-																	}
-									}
-	case DO(B',Sloop') =>			match S1 {
-									case Skip =>					S2
-									case DO(B1,Sloop1) =>			match S2 {
-																	case Skip => S1
-																	case DO(B2,Sloop2) => DO(B1, mergeStatements(Sloop1, Sloop2, Sloop'))
-																	}
-									}
-	}
-
-	/*match S1 {
-	case Skip =>				  S2
-								  
-	case Assignment(LHS1,RHS1) => match S2 {
-								  case Skip =>					S1
-								  case Assignment(LHS2,RHS2) => match S {
-																case Assignment(LHS',RHS') => var LR := mergeAssignments(LHS1, LHS2, RHS1, RHS2, {}); Assignment(LR.0, LR.1)
-																}
-								  }
-	case SeqComp(S11,S12) =>	  match S2 {
-								  case Skip =>					S1
-								  case SeqComp(S21,S22) =>		match S {
-																case SeqComp(S1',S2') => SeqComp(mergeStatements(S11, S21, S1'), mergeStatements(S12, S22, S2'))
-																}
-								  }
-	case IF(B1,Sthen1,Selse1) =>  match S2 {
-								  case Skip =>					S1
-								  case IF(B2,Sthen2,Selse2) =>	match S {
-																case IF(B',Sthen',Selse') => IF(B1, mergeStatements(Sthen1, Sthen2, Sthen'), mergeStatements(Selse1, Selse2, Selse'))
-																}
-								  }
-	case DO(B1,Sloop1) =>		  match S2 {
-								  case Skip =>					S1 
-								  case DO(B2,Sloop2) =>			match S {
-																case DO(B',Sloop') => DO(B1, mergeStatements(Sloop1, Sloop2, Sloop'))
-																}
-								  }
-	}*/
-}
-
-function {:verify false}mergeAssignments(LHS1: seq<Variable>, LHS2: seq<Variable>, RHS1: seq<Expression>, RHS2: seq<Expression>, vars: set<Variable>) : (seq<Variable>, seq<Expression>)
-	requires |LHS1| == |RHS1| && |LHS2| == |RHS2|
-	ensures Valid(Assignment(mergeAssignments(LHS1, LHS2, RHS1, RHS2, vars).0, mergeAssignments(LHS1, LHS2, RHS1, RHS2, vars).1))
-{
-	// LHS1 = [x,y]
-	// LHS2 = [y,z]
-	// RHS1 = [1,2]
-	// RHS2 = [2,3]
-
-	// LHS1 = [x,y]
-	// LHS2 = [x,z]
-	// RHS1 = [1,2]
-	// RHS2 = [1,3]
-
-	// LHS1 = [x,y]
-	// LHS2 = [z,x]
-	// RHS1 = [1,2]
-	// RHS2 = [3,1]
-
-	// LHS1 = [x,y,z]
-	// LHS2 = [u,v]
-	// RHS1 = [1,2,3]
-	// RHS2 = [4,5]
-
-
-	if LHS1 == [] && LHS2 == [] then ([],[])
-	else
-		if LHS1 == [] && LHS2 != [] then 
-			var res := mergeAssignments(LHS1, LHS2[1..], RHS1, RHS2[1..], vars + {LHS2[0]});
-			var LHS := [LHS2[0]] + res.0;
-			var RHS := [RHS2[0]] + res.1;
-			(LHS, RHS)			
-		else if LHS1 != [] && LHS2 == [] then
-			var res := mergeAssignments(LHS1[1..], LHS2, RHS1[1..], RHS2, vars + {LHS1[0]});
-			var LHS := [LHS1[0]] + res.0;
-			var RHS := [RHS1[0]] + res.1;
-			(LHS, RHS)			
-		else 
-			if LHS1[0] == LHS2[0] then
-				var res := mergeAssignments(LHS1[1..], LHS2[1..], RHS1[1..], RHS2[1..], vars + {LHS1[0]});
-				var LHS := [LHS1[0]] + res.0;
-				var RHS := [RHS1[0]] + res.1;
-				(LHS, RHS)
-			else
-				var res := mergeAssignments(LHS1[1..], LHS2[1..], RHS1[1..], RHS2[1..], vars + {LHS1[0], LHS2[0]});
-				if LHS1[0] !in vars && LHS2[0] !in vars then
-					var LHS := [LHS1[0]] + [LHS2[0]] + res.0;
-					var RHS := [RHS1[0]] + [RHS2[0]] + res.1;
-					(LHS, RHS)
-				else if LHS1[0] !in vars then
-					var LHS := [LHS1[0]] + res.0;
-					var RHS := [RHS1[0]] + res.1;
-					(LHS, RHS)
-				else /* if LHS2[0] !in vars then */
-					var LHS := [LHS2[0]] + res.0;
-					var RHS := [RHS2[0]] + res.1;
-					(LHS, RHS)
-}
-
-predicate {:verify true}Substatement(S': Statement, S: Statement)
-	reads *
-	requires Valid(S')
-	requires Valid(S)
-	requires Core(S')
-	requires Core(S)
-{
-	match S {
-	case Skip =>				S' == Skip		
-	case Assignment(LHS,RHS) =>	match S' {
-								case Skip => true
-								case Assignment(LHS',RHS') => Subassignment(LHS', RHS', LHS, RHS)
-								case SeqComp(S1',S2') => false
-								case IF(B0',Sthen',Selse') => false
-								case DO(B',Sloop') => false
-								}
-	case SeqComp(S1,S2) =>		match S' {
-								case Skip => true
-								case Assignment(LHS',RHS') => false
-								case SeqComp(S1',S2') => Substatement(S1', S1) && Substatement(S2', S2)
-								case IF(B0',Sthen',Selse') => false
-								case DO(B',Sloop') => false
-								}	
-	case IF(B0,Sthen,Selse) =>	match S' {
-								case Skip => true
-								case Assignment(LHS',RHS') => false
-								case SeqComp(S1',S2') => false								
-								case IF(B0',Sthen',Selse') => SameBooleanExpressions(B0, B0') && Substatement(Sthen', Sthen) && Substatement(Selse', Selse)
-								case DO(B',Sloop') => false
-								}
-	case DO(B,Sloop) =>			match S' {
-								case Skip => true
-								case Assignment(LHS',RHS') => false
-								case SeqComp(S1',S2') => false								
-								case IF(B0',Sthen',Selse') => false
-								case DO(B',Sloop') => SameBooleanExpressions(B, B') && Substatement(Sloop', Sloop)
-								}
-	}
-}
-
-predicate {:verify true}Subassignment(LHS': seq<Variable>, RHS': seq<Expression>, LHS: seq<Variable>, RHS: seq<Expression>)
-	requires ValidAssignment(LHS', RHS')
-	requires ValidAssignment(LHS, RHS)
-{
-	// S':  x,z := 1,3;
-	// S:   x,y,z := 1,2,3;
-
-	if LHS' == [] then true
-	else if LHS == [] then false
-	else
-		assert ValidAssignment(LHS[1..], RHS[1..]) by { LemmaSetOf1(LHS); }
-		assert ValidAssignment(LHS'[1..], RHS'[1..]) by { LemmaSetOf1(LHS'); }
-		if LHS'[0] == LHS[0] then
-			if SameExpressions(RHS'[0], RHS[0]) then Subassignment(LHS'[1..], RHS'[1..], LHS[1..], RHS[1..])
-			else false
-		else
-			Subassignment(LHS', RHS', LHS[1..], RHS[1..])
-}
-
-lemma LemmaSetOf1<T>(q: seq<T>)
-	requires |q| != 0
-	requires |setOf(q)| == |q|
-	ensures |setOf(q[1..])| == |q[1..]|
-/*
-{
-	calc {
-		|q[1..]|;
-	== { assert |[q[0]]| == 1; assert q == [q[0]] + q[1..]; }
-		|LHS| - 1;
-	== { assert |setOf(q)| == |q|; }
-		|setOf(q)| - 1;
-	== { assert q == [q[0]] + q[1..]; }
-		|setOf([q[0]] + q[1..])| - 1;
-	== { assert q[0] !in q[1..]; } // lemma
-		|setOf([q[0]]) + setOf(q[1..])| - 1;
-	== { assert setOf([q[0]]) * setOf(q[1..]) == {}; }
-		|setOf([q[0]])| + |setOf(q[1..])| - 1;
-	== { assert |setOf([q[0]])| == 1; }
-		|setOf(q[1..])|;
-	}
-}
-*/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -957,6 +600,7 @@ method {:verify false} ComputeFISlice(S: Statement, V: set<Variable>, ghost varS
 	requires VarSlideDGOf(varSlideDG, S) // varSlideDG is of S
 	ensures var varSlidesSV: set<VarSlide> := varSlidesOf(SV, V); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(varSlideDG, Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
 	ensures Substatement(SV, S)
+	ensures Valid(SV) && Core(SV)
 {
 	var Vstar := ComputeSlidesDepRtc(S, V);
 

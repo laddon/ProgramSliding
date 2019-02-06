@@ -58,6 +58,38 @@ predicate IsSkip(S: Statement)
 	S == Skip
 }
 
+function GetS1(S: Statement): Statement
+	requires IsSeqComp(S)
+{
+	match S {
+	case SeqComp(S1, S2) => S1
+	}
+}
+
+function GetS2(S: Statement): Statement
+	requires IsSeqComp(S)
+{
+	match S {
+	case SeqComp(S1, S2) => S2
+	}
+}
+
+function GetLoopBool(S: Statement): BooleanExpression
+	requires IsDO(S)
+{
+	match S {
+	case DO(B, S1) => B
+	}
+}
+
+function GetLoopBody(S: Statement): Statement
+	requires IsDO(S)
+{
+	match S {
+	case DO(B, S1) => S1
+	}
+}
+
 //============================================================
 //					*** Validation ***
 //============================================================

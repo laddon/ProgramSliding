@@ -1,4 +1,4 @@
-include "Definitions.dfy"
+﻿include "Definitions.dfy"
 include "Substitutions.dfy"
 include "Util.dfy"
 include "CorrectnessSSA.dfy"
@@ -1532,11 +1532,243 @@ function method {:verify false} RemoveEmptyAssignments(S: Statement): Statement
 				SeqComp(RemoveEmptyAssignments(S1), RemoveEmptyAssignments(S2))
 		case IF(B0,Sthen,Selse) => 
 			IF(B0, RemoveEmptyAssignments(Sthen), RemoveEmptyAssignments(Selse))
-		case DO(B,S') => 
-			DO(B, RemoveEmptyAssignments(S'))
+		case DO(B,S1) => 
+			DO(B, RemoveEmptyAssignments(S1))
 		case Skip => Skip
 	}
 }
+
+lemma L80(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires forall l :: l in allLabelsOf(S) ==> ValidLabel(l, S)
+	ensures var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); forall l :: l in allLabelsOf(S) - selfEmptyLabelsSV' ==>
+		RemoveEmptyAssignments(Rename(slipOf(S, l), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), LabelOf(selfEmptyLabelsSV', l))
+{
+	var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S));
+	forall l | l in allLabelsOf(S) - selfEmptyLabelsSV' ensures RemoveEmptyAssignments(Rename(slipOf(S, l), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), LabelOf(selfEmptyLabelsSV', l)) {
+		L81(S, XLs, X, l, LabelOf(selfEmptyLabelsSV', l));
+	}
+}
+
+lemma L81(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variable>, varLabel: Label, l: Label)
+	requires var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); varLabel in allLabelsOf(S) - selfEmptyLabelsSV'
+	requires var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); l == LabelOf(selfEmptyLabelsSV', varLabel)
+	ensures RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l)
+{
+	if l == [] {
+		assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), []) by {
+			assert varLabel == (if IsDO(slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), [])) then [2] else []);
+			if varLabel == [] {
+				calc {
+					RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+				==
+					RemoveEmptyAssignments(Rename(slipOf(S, []), XLs, X));
+				==
+					RemoveEmptyAssignments(Rename(S, XLs, X));
+				==
+					slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), []);
+				}
+			} else {
+				assert varLabel == [2];
+				assert IsSeqComp(S);
+				assert IsDO(slipOf(S, [2]));
+				match S {
+				case SeqComp(S1, S2) =>
+					assert RemoveEmptyAssignments(Rename(slipOf(S, [2]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), []) by {
+						calc {
+							slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), []);
+						==
+							RemoveEmptyAssignments(Rename(S, XLs, X));
+						== { assert S == SeqComp(S1, S2); }
+							RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X));
+						== { L82(S1, S2, XLs, X); }
+							RemoveEmptyAssignments(SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X)));
+						==
+							RemoveEmptyAssignments(SeqComp(Assignment([], []), Rename(S2, XLs, X)));
+						== { assert !IsEmptyAssignment(Rename(S2, XLs, X)); }
+							RemoveEmptyAssignments(Rename(S2, XLs, X));
+						==
+							RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), [2]), XLs, X));
+						== { assert S == SeqComp(S1, S2); }
+							RemoveEmptyAssignments(Rename(slipOf(S, [2]), XLs, X));
+						}
+					}
+				}
+			}
+		}
+	}
+	else {
+		assert l != [] ==> varLabel != [];
+		match S {
+		case Assignment(LHS,RHS) => assert false;
+		case SeqComp(S1,S2) =>		if IsDO(S2) {
+										assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l) by {
+											calc {
+												RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+											== { assert S == SeqComp(S1, S2); }
+												RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), varLabel), XLs, X));
+											== { assert varLabel == [2] + varLabel[1..]; } // first part of [2,1,1]
+												RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), [2] + varLabel[1..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(S2, varLabel[1..]), XLs, X));
+											== { assert IsDO(S2); }
+												RemoveEmptyAssignments(Rename(slipOf(DO(GetLoopBool(S2), GetLoopBody(S2)), varLabel[1..]), XLs, X));
+											== { assert varLabel[1..] == [1] + varLabel[2..]; } // second part of [2,1,1]
+												RemoveEmptyAssignments(Rename(slipOf(DO(GetLoopBool(S2), GetLoopBody(S2)), [1] + varLabel[2..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(GetLoopBody(S2), varLabel[2..]), XLs, X));
+											== { assert IsSeqComp(GetLoopBody(S2)); }
+												RemoveEmptyAssignments(Rename(slipOf(SeqComp(GetS1(GetLoopBody(S2)), GetS2(GetLoopBody(S2))), varLabel[2..]), XLs, X));
+											== 	{ assert varLabel[2..] == [1] + varLabel[3..]; } // third part of [2,1,1]
+												RemoveEmptyAssignments(Rename(slipOf(SeqComp(GetS1(GetLoopBody(S2)), GetS2(GetLoopBody(S2))), [1] + varLabel[3..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(GetS1(GetLoopBody(S2)), varLabel[3..]), XLs, X));
+											== { L81(GetS1(GetLoopBody(S2)) , XLs, X, varLabel[3..], l[1..]); 
+												 assert RemoveEmptyAssignments(Rename(slipOf(GetS1(GetLoopBody(S2)), varLabel[3..]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(GetS1(GetLoopBody(S2)), XLs, X)), l[1..]); }
+												slipOf(RemoveEmptyAssignments(Rename(GetS1(GetLoopBody(S2)), XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(GetLoopBody(S2)), XLs, X), Assignment([], []))), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(GetLoopBody(S2)), XLs, X), Rename(GetS2(GetLoopBody(S2)), XLs, X))), l[1..]);
+											==	{ L82(GetS1(GetLoopBody(S2)), GetS2(GetLoopBody(S2)), XLs, X); }
+												slipOf(RemoveEmptyAssignments(Rename(SeqComp(GetS1(GetLoopBody(S2)), GetS2(GetLoopBody(S2))), XLs, X)), l[1..]);
+											== { assert IsSeqComp(GetLoopBody(S2)); }
+												slipOf(RemoveEmptyAssignments(Rename(GetLoopBody(S2), XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(Rename(DO(GetLoopBool(S2), GetLoopBody(S2)), XLs, X)), [1] + l[1..]);
+											== { assert l == [1] + l[1..]; }
+												slipOf(RemoveEmptyAssignments(Rename(DO(GetLoopBool(S2), GetLoopBody(S2)), XLs, X)), l);
+											== { assert IsDO(S2); }
+												slipOf(RemoveEmptyAssignments(Rename(S2, XLs, X)), l);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Assignment([], []), Rename(S2, XLs, X)), l);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X)), l);
+											== { L82(S1, S2, XLs, X); }
+												slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), l);
+											== { assert S == SeqComp(S1, S2); }
+												slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l);
+											}
+										}
+									}
+									else {
+										if varLabel[0] == 1 {
+											assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l) by {
+												calc {
+													RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+												== { assert S == SeqComp(S1, S2); }
+													RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), varLabel), XLs, X));
+												== { assert varLabel == [1] + varLabel[1..]; }
+													RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), [1] + varLabel[1..]), XLs, X));
+												==
+													RemoveEmptyAssignments(Rename(slipOf(S1, varLabel[1..]), XLs, X));
+												== { L81(S1, XLs, X, varLabel[1..], l[1..]);
+													 assert RemoveEmptyAssignments(Rename(slipOf(S1, varLabel[1..]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S1, XLs, X)), l[1..]); }
+													slipOf(RemoveEmptyAssignments(Rename(S1, XLs, X)), l[1..]);
+												==
+													slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), [1] + l[1..]);
+												== { assert l == [1] + l[1..]; }
+													slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), l);
+												==
+													slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l);
+												}
+											}
+										} else {
+											assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l) by {
+												calc {
+													RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+												== { assert S == SeqComp(S1, S2); }
+													RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), varLabel), XLs, X));
+												==	{ assert varLabel == [2] + varLabel[1..]; }
+													RemoveEmptyAssignments(Rename(slipOf(SeqComp(S1, S2), [2] + varLabel[1..]), XLs, X));
+												==
+													RemoveEmptyAssignments(Rename(slipOf(S2, varLabel[1..]), XLs, X));
+												== { L81(S2, XLs, X, varLabel[1..], l[1..]);
+													 assert RemoveEmptyAssignments(Rename(slipOf(S2, varLabel[1..]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S2, XLs, X)), l[1..]); }
+													slipOf(RemoveEmptyAssignments(Rename(S2, XLs, X)), l[1..]);
+												==
+													slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), [2] + l[1..]);
+												== { assert l == [2] + l[1..]; }
+													slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), l);
+												==
+													slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l);
+												}
+											}
+										}
+									}
+		case IF(B0,Sthen,Selse) =>	if varLabel[0] == 1 {
+										assert IsSeqComp(Sthen);
+										assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l) by {
+											calc {
+												RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+											== { assert S == IF(B0,Sthen,Selse); }
+												RemoveEmptyAssignments(Rename(slipOf(IF(B0,Sthen,Selse), varLabel), XLs, X));
+											==	{ assert varLabel == [1,1] + varLabel[2..]; }
+												RemoveEmptyAssignments(Rename(slipOf(IF(B0,Sthen,Selse), [1,1] + varLabel[2..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(Sthen, [1] + varLabel[2..]), XLs, X)); // in else - it's [1] + varLabel[2..]
+											==
+												RemoveEmptyAssignments(Rename(slipOf(GetS1(Sthen), varLabel[2..]), XLs, X));
+											== { L81(GetS1(Sthen), XLs, X, varLabel[2..], l[1..]);
+												 assert RemoveEmptyAssignments(Rename(slipOf(GetS1(Sthen), varLabel[2..]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(GetS1(Sthen), XLs, X)), l[1..]); }
+												slipOf(RemoveEmptyAssignments(Rename(GetS1(Sthen), XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(Sthen), XLs, X), Assignment([],[]))), l[1..]);
+											== { assert IsEmptyAssignment(GetS2(Sthen)); }
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(Sthen), XLs, X), Rename(GetS2(Sthen), XLs, X))), l[1..]);
+											== { L82(GetS1(Sthen), GetS2(Sthen), XLs, X); }
+												slipOf(RemoveEmptyAssignments(Rename(SeqComp(GetS1(Sthen), GetS2(Sthen)), XLs, X)), l[1..]);
+											== { assert IsSeqComp(Sthen); }
+												slipOf(RemoveEmptyAssignments(Rename(Sthen, XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(Rename(IF(B0,Sthen,Selse), XLs, X)), [1] + l[1..]);
+											== { assert l == [1] + l[1..]; }
+												slipOf(RemoveEmptyAssignments(Rename(IF(B0,Sthen,Selse), XLs, X)), l);
+											== { assert S == IF(B0,Sthen,Selse); }
+												slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l);
+											}
+										}
+									}
+									else {
+										assert IsSeqComp(Selse);
+										assert RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l) by {
+											calc {
+												RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X));
+											== { assert S == IF(B0,Sthen,Selse); }
+												RemoveEmptyAssignments(Rename(slipOf(IF(B0,Sthen,Selse), varLabel), XLs, X));
+											==	{ assert varLabel == [2,1] + varLabel[2..]; }
+												RemoveEmptyAssignments(Rename(slipOf(IF(B0,Sthen,Selse), [2,1] + varLabel[2..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(Selse, [1] + varLabel[2..]), XLs, X));
+											==
+												RemoveEmptyAssignments(Rename(slipOf(GetS1(Selse), varLabel[2..]), XLs, X));
+											== { L81(GetS1(Selse), XLs, X, varLabel[2..], l[1..]);
+												 assert RemoveEmptyAssignments(Rename(slipOf(GetS1(Selse), varLabel[2..]), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(GetS1(Selse), XLs, X)), l[1..]); }
+												slipOf(RemoveEmptyAssignments(Rename(GetS1(Selse), XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(Selse), XLs, X), Assignment([],[]))), l[1..]);
+											== { assert IsEmptyAssignment(GetS2(Selse)); }
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(GetS1(Selse), XLs, X), Rename(GetS2(Selse), XLs, X))), l[1..]);
+											== { L82(GetS1(Selse), GetS2(Selse), XLs, X); }
+												slipOf(RemoveEmptyAssignments(Rename(SeqComp(GetS1(Selse), GetS2(Selse)), XLs, X)), l[1..]);
+											== { assert IsSeqComp(Selse); }
+												slipOf(RemoveEmptyAssignments(Rename(Selse, XLs, X)), l[1..]);
+											==
+												slipOf(RemoveEmptyAssignments(Rename(IF(B0,Sthen,Selse), XLs, X)), [2] + l[1..]);
+											== { assert l == [2] + l[1..]; }
+												slipOf(RemoveEmptyAssignments(Rename(IF(B0,Sthen,Selse), XLs, X)), l);
+											== { assert S == IF(B0,Sthen,Selse); }
+												slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l);
+											}
+										}
+									}
+		case DO(B,S1) =>			assert false;
+		case Skip =>				assert false;
+		}
+	}
+}
+
+lemma L82(S1: Statement, S2: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	ensures Rename(SeqComp(S1, S2), XLs, X) == SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X))
 
 function method {:verify false}IsEmptyAssignmentFunc(S: Statement): bool // changed from predicate to function method, because called in RemoveEmptyAssignments
 	requires Core(S) && Valid(S)

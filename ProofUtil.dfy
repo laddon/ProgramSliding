@@ -87,38 +87,88 @@ function {:verify false}VarSlideOf(S: Statement, S': Statement, slide: Slide): V
 	}
 }
 
-function {:verify false}VarLabelOf(S: Statement, S': Statement, l: Label): Label
+function VarLabelOf(S: Statement, S': Statement, l: Label): Label
 	//requires S == RemoveEmptyAssignments(Rename(S', XLs, X))
 	reads *
 	requires Valid(S)
 	requires Valid(S')
 	requires Core(S)
 	requires Core(S')
-	ensures |VarLabelOf(S, S', l)| >= 1 && |VarLabelOf(S, S', l)| <= maxLabelSize(S')
+	requires ValidLabel(l, S)
+	//ensures |VarLabelOf(S, S', l)| >= 1 && |VarLabelOf(S, S', l)| <= maxLabelSize(S')
 	ensures ValidLabel(VarLabelOf(S, S', l), S')
 {
 	match S {
-	case Skip =>				[]		
-	case Assignment(LHS,RHS) =>	match S' {
-								case Assignment(LHS',RHS') => []
-								}
-	case SeqComp(S1,S2) =>		match S' {
+	case Skip =>				assume IsSkip(S');
+								assert l == [];
+								[]	
+	case Assignment(LHS,RHS) =>	assume IsAssignment(S');
+								assert l == [];
+								[]
+	case SeqComp(S1,S2) =>		if l == [] then [] else
+								assume IsSeqComp(S');
+								match S' {
 								case SeqComp(S1',S2') => if l[0] == 1 then [1] + VarLabelOf(S1, S1', l[1..]) else [2] + VarLabelOf(S2, S2', l[1..])
 								}	
-	case IF(B0,Sthen,Selse) =>	match S' {							
-								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1,1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2,1] + VarLabelOf(Selse, Selse', l[1..]) // changed 16/12/18
-								//case IF(B0',Sthen',Selse') => if l[0] == 1 then [1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2] + VarLabelOf(Selse, Selse', l[1..])
+	case IF(B0,Sthen,Selse) =>	if l == [] then [] else
+								assume IsIF(S');
+								match S' {							
+								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1,1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2,1] + VarLabelOf(Selse, Selse', l[1..])
 								}
-	case DO(B,Sloop) =>			match S' {
+	case DO(B,Sloop) =>			if l == [] then [2] else
+								assume IsSeqComp(S');
+								match S' {
 								// S1' is the phi assignment and S2' is the DO
 								// we should add another [2] in order to go to the loop
-								case SeqComp(S1',S2') => match S2' {
-														 case DO(B',Sloop') => [2,1,1] + VarLabelOf(Sloop, Sloop', l[1..]) // changed 16/12/18
-														 //case DO(B',Sloop') => [2] + [1] + VarLabelOf(Sloop, Sloop', l[1..]) 
+								case SeqComp(S1',S2') => assume IsDO(S2');
+														 match S2' {
+														 case DO(B',Sloop') => assume Valid(Sloop') && Core(Sloop'); [2,1,1] + VarLabelOf(Sloop, Sloop', l[1..])
 														 }
 								}
 	}
 }
+
+/*function VarLabelOf(S: Statement, S': Statement, l: Label): Label
+	//requires S == RemoveEmptyAssignments(Rename(S', XLs, X))
+	reads *
+	requires Valid(S)
+	requires Valid(S')
+	requires Core(S)
+	requires Core(S')
+	requires ValidLabel(l, S)
+	//ensures |VarLabelOf(S, S', l)| >= 1 && |VarLabelOf(S, S', l)| <= maxLabelSize(S')
+	ensures ValidLabel(VarLabelOf(S, S', l), S')
+{
+	if l == [] then []
+	else
+	match S {
+	case Skip =>				assume IsSkip(S');
+								match S' {
+								case Skip => []
+								}		
+	case Assignment(LHS,RHS) =>	assume IsAssignment(S');
+								match S' {
+								case Assignment(LHS',RHS') => []
+								}
+	case SeqComp(S1,S2) =>		assume IsSeqComp(S');
+								match S' {
+								case SeqComp(S1',S2') => if l[0] == 1 then [1] + VarLabelOf(S1, S1', l[1..]) else [2] + VarLabelOf(S2, S2', l[1..])
+								}	
+	case IF(B0,Sthen,Selse) =>	assume IsIF(S');
+								match S' {							
+								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1,1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2,1] + VarLabelOf(Selse, Selse', l[1..])
+								}
+	case DO(B,Sloop) =>			assume IsSeqComp(S');
+								match S' {
+								// S1' is the phi assignment and S2' is the DO
+								// we should add another [2] in order to go to the loop
+								case SeqComp(S1',S2') => assume IsDO(S2');
+														 match S2' {
+														 case DO(B',Sloop') => assume Valid(Sloop') && Core(Sloop'); [2,1,1] + VarLabelOf(Sloop, Sloop', l[1..])
+														 }
+								}
+	}
+}*/
 
 
 /*
@@ -153,8 +203,11 @@ function LabelOf(selfEmptyLabelsSV': set<Label>, varLabel: Label): Label
 	if varLabel == [] then []
 	else 	
 		var newLabel := if varLabel[..|varLabel|-1] == [1] then varLabel[..|varLabel|-1] + [2] else varLabel[..|varLabel|-1] + [1];
-		if newLabel in selfEmptyLabelsSV' then LabelOf(selfEmptyLabelsSV', varLabel[..|varLabel|-1])
-		else LabelOf(selfEmptyLabelsSV', varLabel[..|varLabel|-1]) + [varLabel[|varLabel|-1]]
+
+		if newLabel in selfEmptyLabelsSV' then
+			LabelOf(selfEmptyLabelsSV', varLabel[..|varLabel|-1])
+		else
+			LabelOf(selfEmptyLabelsSV', varLabel[..|varLabel|-1]) + [varLabel[|varLabel|-1]]
 }
 
 function {:verify false}LabelOf2(S': Statement, S: Statement, varLabel: Label): Label
@@ -313,11 +366,18 @@ function {:verify false}statementOfSlide(slide: Slide, l: Label, S: Statement): 
 	else
 	match S {
 	case Skip => Skip
-	case Assignment(LHS,RHS) => S
+	case Assignment(LHS,RHS) => Assignment([slide.1], [CorrespondingRHS(slide.1, LHS, RHS)])
 	case SeqComp(S1,S2) =>		if l[0] == 1 then SeqComp(statementOfSlide(slide, l[1..], S1), Skip)  else SeqComp(Skip, statementOfSlide(slide, l[1..], S2))
 	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then IF(B0, statementOfSlide(slide, l[1..], Sthen), Skip) else IF(B0, Skip, statementOfSlide(slide, l[1..], Selse))
 	case DO(B,Sloop) =>			DO(B, statementOfSlide(slide, l[1..], Sloop))
 	}
+}
+
+function CorrespondingRHS(v: Variable, LHS: seq<Variable>, RHS: seq<Expression>): Expression
+	requires Valid(Assignment(LHS, RHS))
+	requires v in LHS
+{
+	if LHS[0] == v then RHS[0] else CorrespondingRHS(v, LHS[1..], RHS[1..])
 }
 
 function {:verify false}mergeStatements(S1: Statement, S2: Statement, S: Statement) : Statement

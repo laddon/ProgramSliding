@@ -114,7 +114,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 			//assert forall slide :: slide in SlideDGOf(S, CFGOf(S)).1 ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV);
 			assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV;
 
-			LemmaVarSlidesSVToRes(slide, S, S', SV', res, slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA, XLsSeq);
+			LemmaVarSlidesSVToRes(slide, S, S', SV', res, slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA, XLsSeq, glob(S));
 			//assert forall slide :: slide in /*SlideDGOf(S, CFGOf(S)).1*/ slidesOf(S, def(S)) ==> (VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)));
 			assert VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S));
 		}
@@ -131,9 +131,9 @@ lemma LemmaIdenticalSlices(S: Statement, S1: Statement, S2: Statement)
 	requires allSlidesOf(S1) == allSlidesOf(S2) // check multiple assignments
 	ensures S1 == S2
 
-lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, X: seq<Variable>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, vsSSA: VariablesSSA, XLs: seq<set<Variable>>)
+lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, X: seq<Variable>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, vsSSA: VariablesSSA, XLs: seq<set<Variable>>, globS: set<Variable>)
 	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
-	requires ValidXLs(S, XLs, X)
+	requires ValidXLs(globS, XLs, X)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
@@ -153,7 +153,7 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 
 		if (vSlide in varSlidesSV)
 		{
-			L60(slide, vSlide, S, S', SV', res, slidesSV, varSlidesSV, V, V', varSlideDGS', X, XLs);
+			L60(slide, vSlide, S, S', SV', res, slidesSV, varSlidesSV, V, V', varSlideDGS', X, XLs, globS);
 			assert slide in slidesOf(res, def(S));
 		}
 		else // vSlide !in varSlidesS
@@ -164,9 +164,9 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 	}
 }
 
-lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, X: seq<Variable>, XLs: seq<set<Variable>>)
+lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Statement, res: Statement, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, V: set<Variable>, V': set<Variable>, varSlideDGS': VarSlideDG, X: seq<Variable>, XLs: seq<set<Variable>>, globS: set<Variable>)
 	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
-	requires ValidXLs(S, XLs, X)
+	requires ValidXLs(globS, XLs, X)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
@@ -197,7 +197,10 @@ lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 				assert ValidLabel(l, S);
 				ghost var allLabelsRenameSV' := allLabelsOf(Rename(SV', XLs, X));
 				ghost var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(SV', XLs, X), allLabelsRenameSV');
-				IdenticalLabels(S, S', SV', res, l, vLabel, LabelOf(selfEmptyLabelsSV', vLabel), XLs, X, selfEmptyLabelsSV');
+				var l' := LabelOf(selfEmptyLabelsSV', vLabel);
+				assume ValidLabel(vLabel, SV');
+				assume ValidLabel(l', res);
+				IdenticalLabels(S, S', SV', res, l, vLabel, l', XLs, X, selfEmptyLabelsSV', globS);
 			}
 			assert IsAssignment(slipOf(res, l)) by {
 				assert ValidLabel(l, S);
@@ -217,16 +220,16 @@ lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 	}		
 }
 
-predicate ValidXLs(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+predicate ValidXLs(globS: set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>)
 {
 	|X| == |XLs| &&
 	(forall i,j :: 0 <= i < j < |XLs| ==> XLs[i] !! XLs[j]) && // or: XLs[i] * XLs[j] == {}
-	(forall s :: s in XLs ==> s !! glob(S)) // or: s * glob(S) == {}
+	(forall s :: s in XLs ==> s !! globS) // or: s * globS == {}
 }
 
-lemma IdenticalLabels(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, varLabel: Label, l': Label, XLs: seq<set<Variable>>, X: seq<Variable>, selfEmptyLabelsSV': set<Label>)
+lemma IdenticalLabels(S: Statement, S': Statement, SV': Statement, res: Statement, l: Label, varLabel: Label, l': Label, XLs: seq<set<Variable>>, X: seq<Variable>, selfEmptyLabelsSV': set<Label>, globS: set<Variable>)
 	requires NoSelfAssignments(S) && NoEmptyAssignments(S)
-	requires ValidXLs(S, XLs, X)
+	requires ValidXLs(globS, XLs, X)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
@@ -241,7 +244,7 @@ lemma IdenticalLabels(S: Statement, S': Statement, SV': Statement, res: Statemen
 	requires Substatement(SV', S')
 	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X))
 
-	ensures l == LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l))
+	ensures LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l)) == l
 {
 	/*assert allLabelsOf(SV') == allLabelsOf(Rename(SV', XLs, X)) by {
 		forall l1 | l1 in allLabelsOf(SV') ensures l1 in allLabelsOf(Rename(SV', XLs, X)) {
@@ -253,18 +256,44 @@ lemma IdenticalLabels(S: Statement, S': Statement, SV': Statement, res: Statemen
 	}*/
 	assert LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l)) == l by 
 	{
-		/*
+		if (l == [])
+		{
+			assert varLabel == [];
+			assert l' == [];		
+			assert LabelOf(selfEmptyLabelsSV', VarLabelOf(S, S', l)) == l;
+		}
+		else
+		{
+		
+			match S {
+			case Skip =>				assert varLabel == [];
+										assert l' == [];
+			case Assignment(LHS,RHS) =>	assert varLabel == [];
+										assert l' == [];
+			case SeqComp(S1,S2) =>		assert l[0] == varLabel[0];
+										assert varLabel[0] == l'[0] by { // כלומר למה זה לא נמחק
 
-						;
-		i4,s4:=i1,s2;		while
-		*/
+										/*
+										l:			2,2,2,1,1
+										varLabel:	2,2,2,2,1,1,1    , {3,5}
+										l':			2,2,2,1,1
+										*/
 
-		// קבוצת ה; שהולכים להמחק ב LabelOf
-		// זה בדיוק הקבוצה שהוספנו ב varLabelOf
-		assert |l| <= |varLabel|;
-		// l =			[2,2,2,    1,1]
-		// varLabel =	[2,2,2,2,1,1,1]
-		// l' =			[2,2,2,1,1]
+											var newLabel := if varLabel[0] == 1 then [2] else [1];
+											assert newLabel !in selfEmptyLabelsSV';
+										}
+
+										if (l[0] == 1) {
+											IdenticalLabels(S1, S', SV', res, l[1..], varLabel[1..], l'[1..], XLs, X, selfEmptyLabelsSV', globS); }
+										else {
+											IdenticalLabels(S2, S', SV', res, l[1..], varLabel[1..], l'[1..], XLs, X, selfEmptyLabelsSV', globS); }
+			case IF(B0,Sthen,Selse) =>	/*assert l[0] == varLabel[0];
+										assert varLabel[0] == l'[0];
+										IdenticalLabels(S, S', SV', res, l[1..], varLabel[2..], l'[1..], XLs, X, selfEmptyLabelsSV');*/
+			case DO(B,Sloop) =>			/*assert varLabel[0] == 2;
+										IdenticalLabels(S, S', SV', res, l[1..], varLabel[3..], l'[1..], XLs, X, selfEmptyLabelsSV');*/
+			}
+		}
 	}
 }
 

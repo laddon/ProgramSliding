@@ -23,18 +23,18 @@ include "SlideDG.dfy"
 }*/
 
 function {:verify false}RegularPredecessorSlides(varSlide: VarSlide, varSlideDG: VarSlideDG, unvisitedVarSlides: set<VarSlide>): set<VarSlide>
-	requires varSlide in varSlideDG.2
-	requires unvisitedVarSlides <= varSlideDG.1
-	requires forall p :: p in varSlideDG.2[varSlide] ==> p in varSlideDG.1
-	requires forall p :: p in varSlideDG.2[varSlide] ==> p in unvisitedVarSlides
-	requires forall vSlide :: vSlide in unvisitedVarSlides ==> vSlide in varSlideDG.2
+	requires varSlide in VarSlideDGMap(varSlideDG)
+	requires unvisitedVarSlides <= VarSlideDGVarSlides(varSlideDG)
+	requires forall p :: p in VarSlideDGMap(varSlideDG)[varSlide] ==> p in VarSlideDGVarSlides(varSlideDG)
+	requires forall p :: p in VarSlideDGMap(varSlideDG)[varSlide] ==> p in unvisitedVarSlides
+	requires forall vSlide :: vSlide in unvisitedVarSlides ==> vSlide in VarSlideDGMap(varSlideDG)
 	decreases unvisitedVarSlides
 {
-	var predecessors := varSlideDG.2[varSlide];
-	assert forall p :: p in predecessors ==> p in varSlideDG.2;
+	var predecessors := VarSlideDGMap(varSlideDG)[varSlide];
+	assert forall p :: p in predecessors ==> p in VarSlideDGMap(varSlideDG);
 
-	(set vSlide | vSlide in predecessors && vSlide.1 == Regular) + 
-	(set vSlide1, vSlide2 | vSlide1 in predecessors && vSlide1.1 == Phi && vSlide1 in unvisitedVarSlides && vSlide2 in RegularPredecessorSlides(vSlide1, varSlideDG, unvisitedVarSlides - {vSlide1}) :: vSlide2)
+	(set vSlide | vSlide in predecessors && VarSlideTag(vSlide) == Regular) + 
+	(set vSlide1, vSlide2 | vSlide1 in predecessors && VarSlideTag(vSlide1) == Phi && vSlide1 in unvisitedVarSlides && vSlide2 in RegularPredecessorSlides(vSlide1, varSlideDG, unvisitedVarSlides - {vSlide1}) :: vSlide2)
 }
 
 function allLabelsOf(S: Statement): set<Label>
@@ -66,7 +66,7 @@ function {:verify false}VarLabelOfSlide(S: Statement, S': Statement, slide: Slid
 	requires Core(S)
 	requires Core(S')
 {
-	match slide.0 { 
+	match SlideCFGNode(slide) { 
 		case Node(l) => VarLabelOf(S, S', l)
 		case Entry => [] // מיותר! הוספתי רק כדי שירוץ
 		case Exit => [] // מיותר! הוספתי רק כדי שירוץ
@@ -80,7 +80,7 @@ function {:verify false}VarSlideOf(S: Statement, S': Statement, slide: Slide): V
 	requires Core(S)
 	requires Core(S')
 {
-	match slide.0 { 
+	match SlideCFGNode(slide) { 
 		case Node(l) => var varLabel := VarLabelOf(S, S', l); var i := InstanceOf(S', varLabel); (i, Regular, varLabel)
 		case Entry => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
 		case Exit => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
@@ -283,8 +283,8 @@ function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
 	reads *
 	requires Valid(S)
 	requires Core(S)
-	//requires forall slide :: slide in allSlidesOf(S) && exists l :: slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
-	requires forall slide :: exists l :: slide in allSlidesOf(S) && slide.0 == CFGNode.Node(l) ==> ValidLabel(l, S)
+	//requires forall slide :: slide in allSlidesOf(S) && exists l :: SlideCFGNode(slide) == CFGNode.Node(l) ==> ValidLabel(l, S)
+	requires forall slide :: exists l :: slide in allSlidesOf(S) && SlideCFGNode(slide) == CFGNode.Node(l) ==> ValidLabel(l, S)
 	requires slides <= allSlidesOf(S)
 	ensures Core(statementOf(slides, S))
 	ensures Valid(statementOf(slides, S))
@@ -296,7 +296,7 @@ function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
 	if slides == {} then Skip
 	else
 	var slide :| slide in slides;
-	match slide.0 {
+	match SlideCFGNode(slide) {
 	case Node(l) => 	assert slide in allSlidesOf(S);
 						assert ValidLabel(l, S);
 						var S' := statementOfSlide(slide, l, S);
@@ -366,7 +366,7 @@ function {:verify false}statementOfSlide(slide: Slide, l: Label, S: Statement): 
 	else
 	match S {
 	case Skip => Skip
-	case Assignment(LHS,RHS) => Assignment([slide.1], [CorrespondingRHS(slide.1, LHS, RHS)])
+	case Assignment(LHS,RHS) => Assignment([SlideVariable(slide)], [CorrespondingRHS(SlideVariable(slide), LHS, RHS)])
 	case SeqComp(S1,S2) =>		if l[0] == 1 then SeqComp(statementOfSlide(slide, l[1..], S1), Skip)  else SeqComp(Skip, statementOfSlide(slide, l[1..], S2))
 	case IF(B0,Sthen,Selse) =>	if l[0] == 1 then IF(B0, statementOfSlide(slide, l[1..], Sthen), Skip) else IF(B0, Skip, statementOfSlide(slide, l[1..], Selse))
 	case DO(B,Sloop) =>			DO(B, statementOfSlide(slide, l[1..], Sloop))

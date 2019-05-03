@@ -58,6 +58,22 @@ predicate IsSkip(S: Statement)
 	S == Skip
 }
 
+function GetLHS(S: Statement): seq<Variable>
+	requires IsAssignment(S)
+{
+	match S {
+	case Assignment(LHS, RHS) => LHS
+	}
+}
+
+function GetRHS(S: Statement): seq<Expression>
+	requires IsAssignment(S)
+{
+	match S {
+	case Assignment(LHS, RHS) => RHS
+	}
+}
+
 function GetS1(S: Statement): Statement
 	requires IsSeqComp(S)
 {
@@ -71,6 +87,30 @@ function GetS2(S: Statement): Statement
 {
 	match S {
 	case SeqComp(S1, S2) => S2
+	}
+}
+
+function GetIfBool(S: Statement): BooleanExpression
+	requires IsIF(S)
+{
+	match S {
+	case IF(B, Sthen, Selse) => B
+	}
+}
+
+function GetIfThen(S: Statement): Statement
+	requires IsIF(S)
+{
+	match S {
+	case IF(B, Sthen, Selse) => Sthen
+	}
+}
+
+function GetIfElse(S: Statement): Statement
+	requires IsIF(S)
+{
+	match S {
+	case IF(B, Sthen, Selse) => Selse
 	}
 }
 

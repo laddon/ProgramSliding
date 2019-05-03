@@ -6,6 +6,41 @@ type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNod
 type Edge = (Slide, Slide, set<Variable>)
 type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 
+function method SlideCFGNode(s: Slide): CFGNode
+{
+	s.0
+}
+
+function method SlideVariable(s: Slide): Variable
+{
+	s.1
+}
+
+function method SlideCFGNodes(s: Slide): set<CFGNode>
+{
+	s.2
+}
+
+function method SlideDGStatement(slideDG: SlideDG): Statement
+{
+	slideDG.0
+}
+
+function method SlideDGSlides(slideDG: SlideDG): set<Slide>
+{
+	slideDG.1
+}
+
+function method SlideDGMap(slideDG: SlideDG): map<Slide, set<Slide>>
+{
+	slideDG.2
+}
+
+predicate ExistsEdge(slide1: Slide, slide2: Slide, slideDG: SlideDG)
+{
+	slide2 in SlideDGMap(slideDG) && slide1 in SlideDGMap(slideDG)[slide2]
+}
+
 method ComputeSlideDG(S: Statement, cfg: CFG) returns (slideDG: SlideDG)
 	requires Core(S)
 	//ensures SlideDGOf(S, cfg) == ComputeSlideDG(S, cfg)
@@ -19,9 +54,24 @@ method ComputeSlideDG(S: Statement, cfg: CFG) returns (slideDG: SlideDG)
 }
 
 predicate IsSlideDGOf(slideDG: SlideDG, S: Statement)
+{
+	//forall Sm, Sn :: Sm in SlideDGSlides(slideDG) && Sn in SlideDGSlides(slideDG) ==>
+		//(exists e: Edge :: e in EdgesOf(slideDG) && e.0 == Sm && e.1 == Sn <==> SlideDependence(CFGOf(S), Sm, Sn, S))
+
+
+	//SlideDGStatement(slideDG) == S &&     && 
+	SlideDGOf(S, CFGOf(S)) == slideDG
+
+	//(S, set<Slide>, map<Slide, set<Slide>>)
+}
+
+lemma ExistsSlideDependence(slideDG: SlideDG, S: Statement, Sm: Slide, Sn: Slide)
+	requires IsSlideDGOf(slideDG, S)
+	requires Sm in SlideDGSlides(slideDG)
+	requires Sn in SlideDGSlides(slideDG)
+	ensures exists e: Edge :: e in EdgesOf(slideDG) && e.0 == Sm && e.1 == Sn <==> SlideDependence(CFGOf(S), Sm, Sn, S)
 
 function SlideDGOf(S: Statement, cfg: CFG): SlideDG
-
 
 // With CFG instead of PDG:
 method {:verify false}ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
@@ -114,7 +164,7 @@ function slipOf(S: Statement, l: Label): Statement
 	ensures l != [] ==> slipOf(S, l) < S
 	decreases l
 {
-	if l == [] then  S
+	if l == [] then S
 	else
 		match S {
 			case Assignment(LHS,RHS) => Skip//assert false - Doesn't work!!!
@@ -175,6 +225,36 @@ function {:verify false}slidesOf'(S: Statement, V: set<Variable>, l: Label, node
 
 datatype SlideDGPath = Empty | Extend(SlideDGPath, Slide)
 
+predicate IsEmptySlideDGPath(path: SlideDGPath)
+{
+	match path
+	case Empty => true
+	case Extend(prefix, n) => false
+}
+
+predicate IsExtendSlideDGPath(path: SlideDGPath)
+{
+	match path
+	case Empty => false
+	case Extend(prefix, n) => true
+}
+
+function GetPrefixSlideDGPath(path: SlideDGPath): SlideDGPath
+	requires IsExtendSlideDGPath(path)
+{
+	match path {
+	case Extend(prefix, n) => prefix
+	}
+}
+
+function GetNSlideDGPath(path: SlideDGPath): Slide
+	requires IsExtendSlideDGPath(path)
+{
+	match path {
+	case Extend(prefix, n) => n
+	}
+}
+
 predicate SlideDGReachable(slideDG: SlideDG, from: Slide, to: Slide, S: set<Slide>)
 	//requires null !in S
 	//reads S
@@ -193,3 +273,71 @@ predicate SlideDGReachableVia(slideDG: SlideDG, from: Slide, via: SlideDGPath, t
 }
 
 function SlideDGNeighbours(slideDG: SlideDG, n: Slide) : set<Slide>
+	requires n in SlideDGMap(slideDG)
+{
+	SlideDGMap(slideDG)[n]
+}
+
+
+////////// Slide Dependence: ////////////
+
+predicate SlideDependence(cfg: CFG, m: Slide, n: Slide, S: Statement)
+	// For n, exists n' in n.cfgNodes, this n' includes v (v is defined in m) and uses v and there exists a cfg-path with no more defs to v..
+	requires Valid(S) && Core(S)
+{
+	var v := SlideVariable(m);
+	exists n' :: n' in SlideCFGNodes(n) && 
+	match n' {
+		case Node(l) => v in UsedVars(S, l) && ReachingDefinition(S, cfg, n', SlideCFGNode(m), v)
+		case Entry => false
+		case Exit => false
+	}
+}
+
+predicate ReachingDefinition(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
+	requires Valid(S) && Core(S)
+	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
+{
+	DefInCFGNode(S, cfgNode', v') && exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, CFGNodes(cfg)) && (forall node :: node in Nodes(path) - {cfgNode'} ==> !DefInCFGNode(S, node, v'))
+}
+
+predicate DefInCFGNode(S: Statement, cfgNode: CFGNode, v: Variable)
+	requires Valid(S) && Core(S)
+	// Check if cfgNode defines v.
+{
+	match cfgNode
+	case Entry => false
+	case Exit => false
+	case Node(l) => 
+		var s := FindSubstatement(S, l);
+		match s
+		case Assignment(LHS,RHS) => v in LHS
+		case Skip => false
+		case SeqComp(S1,S2) => false
+		case IF(B0,Sthen,Selse) => false
+		case DO(B,Sloop) => false
+		case LocalDeclaration(L,S0) => false
+		case Live(L,S0) => false
+		case Assert(B) => false
+
+}
+
+predicate NoDefPath(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
+	requires Valid(S) && Core(S)
+	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
+{
+	exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, CFGNodes(cfg)) && (forall node :: node in Nodes(path) ==> !DefInCFGNode(S, node, v'))
+}
+
+function Nodes(path: CFGPath): set<CFGNode>
+	decreases path
+{
+	match path
+	case Empty => {}
+	case Extend(prefix, n) => {n} + Nodes(prefix)
+}
+
+function ReachingDefinitions(S: Statement, cfg: CFG, cfgNode: CFGNode): (res: set<(CFGNode, Variable)>)
+	requires cfgNode in CFGNodes(cfg)
+	requires Valid(S) && Core(S)
+	ensures forall pair :: pair in res <==> ReachingDefinition(S, cfg, cfgNode, pair.0, pair.1)

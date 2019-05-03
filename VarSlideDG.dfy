@@ -9,10 +9,39 @@ type VarSlide = (Variable, VarSlideTag, Label)
 type VarEdge = (VarSlide, VarSlide, set<Variable>)
 type VarSlideDG = (Statement, set<VarSlide>, map<VarSlide, set<VarSlide>>) // map from node to it's predecssors
 
-method ComputeVarSlideDG(S: Statement) returns (varSlideDG: VarSlideDG)
-	ensures VarSlideDGOf(varSlideDG, S)
+function method VarSlideVariable(s: VarSlide): Variable
+{
+	s.0
+}
 
-predicate VarSlideDGOf(varSlideDG: VarSlideDG, S: Statement)
+function method VarSlideTag(s: VarSlide): VarSlideTag
+{
+	s.1
+}
+
+function method VarSlideLabel(s: VarSlide): Label
+{
+	s.2
+}
+
+function method VarSlideDGStatement(varSlideDG: VarSlideDG): Statement
+{
+	varSlideDG.0
+}
+
+function method VarSlideDGVarSlides(varSlideDG: VarSlideDG): set<VarSlide>
+{
+	varSlideDG.1
+}
+function method VarSlideDGMap(varSlideDG: VarSlideDG): map<VarSlide, set<VarSlide>>
+{
+	varSlideDG.2
+}
+
+method ComputeVarSlideDG(S: Statement) returns (varSlideDG: VarSlideDG)
+	ensures IsVarSlideDGOf(varSlideDG, S)
+
+predicate IsVarSlideDGOf(varSlideDG: VarSlideDG, S: Statement)
 
 /*
 method ComputeVarSlideDG(S: Statement, pdgN: set<PDGNode>, pdgE: set<PDGEdge>) returns (varSlideDG: VarSlideDG)
@@ -37,6 +66,36 @@ method ComputeVarSlideDGEdges(S: Statement, Slides: set<SSASlide>) returns (edge
 function varSlidesOf(S: Statement, V: set<Variable>) : set<VarSlide>
 
 datatype VarSlideDGPath = Empty | Extend(VarSlideDGPath, VarSlide)
+
+predicate IsEmptyVarSlideDGPath(path: VarSlideDGPath)
+{
+	match path
+	case Empty => true
+	case Extend(prefix, n) => false
+}
+
+predicate IsExtendVarSlideDGPath(path: VarSlideDGPath)
+{
+	match path
+	case Empty => false
+	case Extend(prefix, n) => true
+}
+
+function GetPrefixVarSlideDGPath(path: VarSlideDGPath): VarSlideDGPath
+	requires IsExtendVarSlideDGPath(path)
+{
+	match path {
+	case Extend(prefix, n) => prefix
+	}
+}
+
+function GetNVarSlideDGPath(path: VarSlideDGPath): VarSlide
+	requires IsExtendVarSlideDGPath(path)
+{
+	match path {
+	case Extend(prefix, n) => n
+	}
+}
 
 predicate VarSlideDGReachable(varSlideDG: VarSlideDG, from: VarSlide, to: VarSlide, S: set<VarSlide>)
 	//requires null !in S
@@ -72,4 +131,14 @@ predicate VarSlideDGReachableViaPhi(varSlideDG: VarSlideDG, from: VarSlide, via:
 	match via
 	case Empty => from == to
 	case Extend(prefix, n) => n in S && to in VarSlideDGNeighbours(varSlideDG, n) && n.1 == Phi && VarSlideDGReachableVia(varSlideDG, from, prefix, n, S)
+}
+
+
+////////// VarSlide Dependence: ////////////
+
+predicate VarSlideDependence(m: VarSlide, n: VarSlide, S: Statement)
+	reads *
+	requires Valid(S) && Core(S)
+{
+	VarSlideVariable(m) in UsedVars(S, VarSlideLabel(n))
 }

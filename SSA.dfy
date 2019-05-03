@@ -774,7 +774,7 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 
 	/*ensures var slidesS := allSlides(S); var varSlidesS' := allVarSlides(S');
 			forall s :: s in slidesS ==> (var s' := VarSlideOf(S, S', slide); s' in varSlidesS'
-			&& LabelCorrespondence(assert exists l :: s.0 == CFGNode.Node(l); match s.0 { case Node(l) => l }), VarLabelOfSlide(S, S', s))*/
+			&& LabelCorrespondence(assert exists l :: SlideCFGNode(s) == CFGNode.Node(l); match SlideCFGNode(s) { case Node(l) => l }), VarLabelOfSlide(S, S', s))*/
 
 	//ensures MergedVars1(S', S, XLs from vsSSA - all instances, X)
 {
@@ -787,7 +787,7 @@ method ToSSA(S: Statement, X: seq<Variable>, liveOnEntryX: set<Variable>, liveOn
 	}
 }
 
-function method {:verify false}RenameToSSA(S: Statement, num: int): (Statement,int)  // Should be called with: num == 1
+function method {:verify false}RenameToSSA(S: Statement, num: int): (Statement, int)  // Should be called with: num == 1
 {
 	match S {
 		case Assignment(LHS,RHS) => RenameAssignmentToSSA(LHS, RHS, num)
@@ -808,7 +808,7 @@ function method {:verify false}RenameToSSA(S: Statement, num: int): (Statement,i
 
 function method {:verify false}RenameBoolExpToSSA(B: BooleanExpression, num: int): (B': BooleanExpression)
 
-function method {:verify false}RenameAssignmentToSSA(LHS: seq<Variable>, RHS: seq<Expression>, num: int): (Statement,int)
+function method {:verify false}RenameAssignmentToSSA(LHS: seq<Variable>, RHS: seq<Expression>, num: int): (Statement, int)
 /*{
 	if LHS == [] then (Skip,num) else
 	{
@@ -1448,7 +1448,7 @@ method {:verify false}DoToSSA(B : BooleanExpression, S : Statement, X: seq<Varia
 }
 
 method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variable>, XL2f: seq<Variable>, Y: set<Variable>, XLs: set<Variable>, vsSSA: VariablesSSA, ghost V: set<Variable>, ghost S': Statement, ghost V': set<Variable>, ghost varSlideDG: VarSlideDG) returns (res: Statement)
-	//requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (Sm.0 in V' || (exists Sn: VarSlide :: Sn.0 in V' && VarSlideDGReachable(Sm, Sn, varSlideDG'.1)))	 // Implement VarSlideDGReachable
+	//requires var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V'); forall Sm :: Sm in varSlidesSV <==> (VarSlideVariable(Sm) in V' || (exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG', Sm, Sn, VarSlideDGVarSlides(varSlideDG'))))	 // Implement VarSlideDGReachable
 	///////////////requires Substatement(SV', S') 
 		
 	requires ValidVsSSA(vsSSA)
@@ -1463,7 +1463,7 @@ method {:verify false}FromSSA(SV': Statement, X: seq<Variable>, XL1i: seq<Variab
 
 	ensures MergedVars1(SV', res, XLsToSeq(X, XLs, vsSSA), X)
 	/////////////////ensures forall l :: l in allLabelsOf(S) ==> LabelOf2(VarLabelOf(S,S', l))==l
-	//ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (Sm.0 in V || (exists Sn: VarSlide :: Sn.0 in V && VarSlideDGReachable(Sm, Sn, varSlideDG.1)))	 // Implement VarSlideDGReachable
+	//ensures var varSlidesRes: set<VarSlide> := varSlidesOf(res, V); forall Sm :: Sm in varSlidesRes <==> (VarSlideVariable(Sm) in V || (exists Sn: VarSlide :: VarSlideVariable(Sn) in V && VarSlideDGReachable(varSlideDG, Sm, Sn, VarSlideDGVarSlides(varSlideDG))))	 // Implement VarSlideDGReachable
 	//ensures Substatement(res, S) 
 {
 	var XLsSeq := XLsToSeq(X, XLs, vsSSA);
@@ -1539,7 +1539,11 @@ function method {:verify false} RemoveEmptyAssignments(S: Statement): Statement
 }
 
 lemma L80(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(S) && Core(S)
+	requires Core(RemoveEmptyAssignments(Rename(S, XLs, X))) && Valid(RemoveEmptyAssignments(Rename(S, XLs, X)))
 	requires forall l :: l in allLabelsOf(S) ==> ValidLabel(l, S)
+	requires var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); forall l :: l in allLabelsOf(S) - selfEmptyLabelsSV' ==> 
+		ValidLabel(LabelOf(selfEmptyLabelsSV', l), RemoveEmptyAssignments(Rename(S, XLs, X)))
 	ensures var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); forall l :: l in allLabelsOf(S) - selfEmptyLabelsSV' ==>
 		RemoveEmptyAssignments(Rename(slipOf(S, l), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), LabelOf(selfEmptyLabelsSV', l))
 {
@@ -1550,8 +1554,11 @@ lemma L80(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variabl
 }
 
 lemma L81(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variable>, varLabel: Label, l: Label)
+	requires Core(S) && Valid(S)
+	requires Core(RemoveEmptyAssignments(Rename(S, XLs, X))) && Valid(RemoveEmptyAssignments(Rename(S, XLs, X)))
 	requires var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); varLabel in allLabelsOf(S) - selfEmptyLabelsSV'
 	requires var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(S, XLs, X), allLabelsOf(S)); l == LabelOf(selfEmptyLabelsSV', varLabel)
+	requires ValidLabel(l, RemoveEmptyAssignments(Rename(S, XLs, X)))
 	ensures RemoveEmptyAssignments(Rename(slipOf(S, varLabel), XLs, X)) == slipOf(RemoveEmptyAssignments(Rename(S, XLs, X)), l)
 {
 	if l == [] {
@@ -1640,9 +1647,9 @@ lemma L81(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variabl
 											== { assert IsDO(S2); }
 												slipOf(RemoveEmptyAssignments(Rename(S2, XLs, X)), l);
 											==
-												slipOf(RemoveEmptyAssignments(SeqComp(Assignment([], []), Rename(S2, XLs, X)), l);
+												slipOf(RemoveEmptyAssignments(SeqComp(Assignment([], []), Rename(S2, XLs, X))), l);
 											==
-												slipOf(RemoveEmptyAssignments(SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X)), l);
+												slipOf(RemoveEmptyAssignments(SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X))), l);
 											== { L82(S1, S2, XLs, X); }
 												slipOf(RemoveEmptyAssignments(Rename(SeqComp(S1, S2), XLs, X)), l);
 											== { assert S == SeqComp(S1, S2); }
@@ -1768,7 +1775,20 @@ lemma L81(S: Statement /*Original SV'*/, XLs: seq<set<Variable>>, X: seq<Variabl
 }
 
 lemma L82(S1: Statement, S2: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(SeqComp(S1, S2)) && Core(SeqComp(S1, S2))
 	ensures Rename(SeqComp(S1, S2), XLs, X) == SeqComp(Rename(S1, XLs, X), Rename(S2, XLs, X))
+
+
+lemma L83(S: Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(S) && Core(S)
+	requires !IsSkip(S)
+	ensures !IsSkip(Rename(S, XLs, X))
+
+lemma L84(S: Statement)
+	requires Valid(S) && Core(S)
+	requires !IsSkip(S)
+	ensures !IsSkip(RemoveEmptyAssignments(S))
+
 
 function method {:verify false}IsEmptyAssignmentFunc(S: Statement): bool // changed from predicate to function method, because called in RemoveEmptyAssignments
 	requires Core(S) && Valid(S)

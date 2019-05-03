@@ -15,9 +15,9 @@ method {:verify false}Slice(S: Statement, V: set<Variable>) returns (slidesSV: s
 
 /*method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
 	requires Core(S)
-	requires forall s :: s in slideDG.1 ==> s in slideDG.2
-	requires forall s1,s2 :: s1 in slideDG.2 && s2 in slideDG.2[s1]  ==> s2 in slideDG.1
-	ensures forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
+	requires forall s :: s in SlideDGSlides(slideDG) ==> s in SlideDGMap(slideDG)
+	requires forall s1,s2 :: s1 in SlideDGMap(slideDG) && s2 in SlideDGMap(slideDG)[s1]  ==> s2 in SlideDGSlides(slideDG)
+	ensures forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))))	 
 {
 	slidesSV := FindFinalDefSlides(S, slideDG, cfg, V);
 	
@@ -29,17 +29,17 @@ method {:verify false}Slice(S: Statement, V: set<Variable>) returns (slidesSV: s
 		var slide :| slide in worklist;
 		
 		worklist, visited := worklist - {slide}, visited + {slide};
-		var newlyReachable := slideDG.2[slide] - slidesSV - {slide};
-		slidesSV := slidesSV + newlyReachable; // + slideDG.2[slide];
-		worklist := worklist + newlyReachable; // + (slideDG.2[slide] - visited)
+		var newlyReachable := SlideDGMap(slideDG)[slide] - slidesSV - {slide};
+		slidesSV := slidesSV + newlyReachable; // + SlideDGMap(slideDG)[slide];
+		worklist := worklist + newlyReachable; // + (SlideDGMap(slideDG)[slide] - visited)
 	}
 }*/
 
 method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: SlideDG, cfg: CFG) returns (slidesSV: set<Slide>)
 	requires Core(S)
-	requires forall s :: s in slideDG.1 ==> s in slideDG.2
-	requires forall s1,s2 :: s1 in slideDG.2 && s2 in slideDG.2[s1]  ==> s2 in slideDG.1
-	ensures forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
+	requires forall s :: s in SlideDGSlides(slideDG) ==> s in SlideDGMap(slideDG)
+	requires forall s1,s2 :: s1 in SlideDGMap(slideDG) && s2 in SlideDGMap(slideDG)[s1]  ==> s2 in SlideDGSlides(slideDG)
+	ensures forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))))	 
 {
 	slidesSV := FindFinalDefSlides(S, slideDG, cfg, V);
 	assert slidesSV == finalDefSlides(S, slideDG, cfg, V);
@@ -49,23 +49,23 @@ method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: Slid
 	var visited := {};
 	
 	while (|worklist| > 0)
-		invariant forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))	 
-		invariant forall Sn :: Sn in worklist ==> Sn in slideDG.2
-		invariant worklist <= slidesSV <= slideDG.1
+		invariant forall Sm :: Sm in slidesSV <==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))))	 
+		invariant forall Sn :: Sn in worklist ==> Sn in SlideDGMap(slideDG)
+		invariant worklist <= slidesSV <= SlideDGSlides(slideDG)
 		invariant visited + worklist == slidesSV
 		invariant visited * worklist == {}
-		//invariant forall Sm :: Sm in worklist ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)))
-		decreases slideDG.1 - visited
+		//invariant forall Sm :: Sm in worklist ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))))
+		decreases SlideDGSlides(slideDG) - visited
 	{
 		var slide :| slide in worklist;
-		assert (visited + {slide}) * ((worklist - {slide}) + (slideDG.2[slide] - slidesSV - {slide})) == {} by {
-			assert visited * ((worklist - {slide}) + (slideDG.2[slide] - slidesSV - {slide})) == {} by { assert visited * worklist == {}; assert visited <= slidesSV; }
-			assert slide !in (worklist - {slide}) + (slideDG.2[slide] - slidesSV - {slide});
+		assert (visited + {slide}) * ((worklist - {slide}) + (SlideDGMap(slideDG)[slide] - slidesSV - {slide})) == {} by {
+			assert visited * ((worklist - {slide}) + (SlideDGMap(slideDG)[slide] - slidesSV - {slide})) == {} by { assert visited * worklist == {}; assert visited <= slidesSV; }
+			assert slide !in (worklist - {slide}) + (SlideDGMap(slideDG)[slide] - slidesSV - {slide});
 		}
-		assert visited + {slide} + ((worklist - {slide}) + (slideDG.2[slide] - slidesSV - {slide})) == slidesSV + (slideDG.2[slide] - slidesSV - {slide}) by {
+		assert visited + {slide} + ((worklist - {slide}) + (SlideDGMap(slideDG)[slide] - slidesSV - {slide})) == slidesSV + (SlideDGMap(slideDG)[slide] - slidesSV - {slide}) by {
 			assert visited + worklist == slidesSV;
 			assert slide in slidesSV;
-			var nr := (slideDG.2[slide] - slidesSV - {slide});
+			var nr := (SlideDGMap(slideDG)[slide] - slidesSV - {slide});
 			assert ((worklist - {slide}) + nr) <= slidesSV + nr by {
 				calc {
 					(worklist - {slide}) + nr;
@@ -86,15 +86,15 @@ method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: Slid
 			}
 		}
 		worklist, visited := worklist - {slide}, visited + {slide};
-		var newlyReachable := slideDG.2[slide] - slidesSV - {slide};
-		slidesSV := slidesSV + newlyReachable; // + slideDG.2[slide];
-		worklist := worklist + newlyReachable; // + (slideDG.2[slide] - visited)
+		var newlyReachable := SlideDGMap(slideDG)[slide] - slidesSV - {slide};
+		slidesSV := slidesSV + newlyReachable; // + SlideDGMap(slideDG)[slide];
+		worklist := worklist + newlyReachable; // + (SlideDGMap(slideDG)[slide] - visited)
 
-		assert forall Sm :: Sm in slidesSV ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1))) by {
-			assert forall Sm :: Sm in slidesSV - newlyReachable ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in (visited - {slide}) * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)));
+		assert forall Sm :: Sm in slidesSV ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)))) by {
+			assert forall Sm :: Sm in slidesSV - newlyReachable ==> (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in (visited - {slide}) * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))));
 			
 		}
-		assert forall Sm :: Sm in slidesSV <== (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, slideDG.1)));	 
+		assert forall Sm :: Sm in slidesSV <== (Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in visited * finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG))));	 
 
 	}
 }
@@ -102,7 +102,7 @@ method {:verify false}ComputeSlice(S: Statement, V: set<Variable>, slideDG: Slid
 function finalDefSlides(S: Statement, slideDG: SlideDG, cfg: CFG, V: set<Variable>): set<Slide>
 	requires Core(S)
 {
-	set slide | slide in slideDG.1 && slide.1 in V && slide in finalDefSlidesOfVariable(S, slideDG, cfg, slide.1)
+	set slide | slide in SlideDGSlides(slideDG) && SlideVariable(slide) in V && slide in finalDefSlidesOfVariable(S, slideDG, cfg, SlideVariable(slide))
 }
 
 method {:verify true}FindFinalDefSlides(S: Statement, slideDG: SlideDG, cfg: CFG, V: set<Variable>) returns (slidesSV: set<Slide>)
@@ -128,7 +128,7 @@ method {:verify true}FindFinalDefSlides(S: Statement, slideDG: SlideDG, cfg: CFG
 function finalDefSlidesOfVariable(S: Statement, slideDG: SlideDG, cfg: CFG, v: Variable): set<Slide>
 	requires Core(S)
 {
-	set slide | slide in slideDG.1 && ReachingDefinition(S, cfg, CFGNode.Exit, slide.0, v)
+	set slide | slide in SlideDGSlides(slideDG) && ReachingDefinition(S, cfg, CFGNode.Exit, SlideCFGNode(slide), v)
 }
 
 method {:verify false}FindFinalDefSlidesOfVariable(S: Statement, slideDG: SlideDG, cfg: CFG, v: Variable) returns (slidesSv: set<Slide>)
@@ -136,19 +136,19 @@ method {:verify false}FindFinalDefSlidesOfVariable(S: Statement, slideDG: SlideD
 	ensures slidesSv == finalDefSlidesOfVariable(S, slideDG, cfg, v)
 {
 	slidesSv := {};
-	var vDefNodes := findDefNodes(slideDG.0, slideDG.1, v); // find all def nodes of v in slideDG
+	var vDefNodes := findDefNodes(SlideDGStatement(slideDG), SlideDGSlides(slideDG), v); // find all def nodes of v in slideDG
 	
 	while (|vDefNodes| > 0)
 	{
 		var vDefNode :| vDefNode in vDefNodes;
 		vDefNodes := vDefNodes - {vDefNode};
 
-		match vDefNode.0 {
+		match SlideCFGNode(vDefNode) {
 			case Entry =>
 			case Node(l) =>
 				var cfgNode := CFGNode.Node(l);
-				var pathsToExit := findAllPathsToExit(slideDG.0, cfg, [cfgNode], {}); // foreach node - find all paths to exit (in cfg) - seq of cfg nodes
-				var res := isFinalDefSlide(slideDG.0, pathsToExit, vDefNode);	      // check if there is at least one path that its only def is in the source node
+				var pathsToExit := findAllPathsToExit(SlideDGStatement(slideDG), cfg, [cfgNode], {}); // foreach node - find all paths to exit (in cfg) - seq of cfg nodes
+				var res := isFinalDefSlide(SlideDGStatement(slideDG), pathsToExit, vDefNode);	      // check if there is at least one path that its only def is in the source node
 
 				if (res)
 				{
@@ -164,11 +164,11 @@ method {:verify false}findAllPathsToExit(S: Statement, cfg: CFG, path: seq<CFGNo
 	
 	match path[0] {
 		case Entry =>
-			//assert |cfg.2[path[0]]| == 1;
-			var node :| node in cfg.2[path[0]];
+			//assert |CFGMap(cfg)[path[0]]| == 1;
+			var node :| node in CFGMap(cfg)[path[0]];
 			pathsToExit := findAllPathsToExit(S, cfg, [node] + path, pathsToExit);
 		case Node(l) =>
-			var nodes := cfg.2[path[0]];
+			var nodes := CFGMap(cfg)[path[0]];
 
 			while (|nodes| > 0) // Could be 1 or 2.
 			{
@@ -218,7 +218,7 @@ method {:verify false}isDefInPath(S: Statement, pathToExit: seq<CFGNode>, vDefNo
 		{
 			case Node(l) =>
 				var defVars := DefinedVars(S, l);
-				if (vDefNode.1 in defVars)
+				if (SlideVariable(vDefNode) in defVars)
 				{
 					res := true;
 				}
@@ -237,76 +237,11 @@ method {:verify false}findDefNodes(S: Statement, nodes: set<Slide>, v: Variable)
 	{
 		var node :| node in nodes;
 
-		if v == node.1 {
+		if v == SlideVariable(node) {
 			var res' := findDefNodes(S, nodes - {node}, v);
 			res := {node} + res';
 		} else {
 			res := findDefNodes(S, nodes - {node}, v);
 		}
 	}
-}
-
-
-//datatype Path<T> = Empty | Extend(Path<T>, T)
-
-
-predicate SlideDependence(cfg: CFG, m: Slide, n: Slide, S: Statement)
-	// For n, exists n' in n.cfgNodes, this n' includes v (v is defined in m) and uses v.
-	requires Core(S)
-{
-	var v := m.1;
-	exists n' :: n' in n.2 && 
-	match n' {
-		case Node(l) => v in UsedVars(S, l) && ReachingDefinition(S, cfg, n', m.0, v)
-		case Entry => false
-		case Exit => false
-	}
-}
-
-function ReachingDefinitions(S: Statement, cfg: CFG, cfgNode: CFGNode): (res: set<(CFGNode, Variable)>)
-	requires cfgNode in cfg.0
-	requires Core(S)
-	ensures forall pair :: pair in res <==> ReachingDefinition(S, cfg, cfgNode, pair.0, pair.1)
-
-predicate DefInCFGNode(S: Statement, cfgNode: CFGNode, v: Variable)
-	requires Core(S)
-	// Check if cfgNode defines v.
-{
-	match cfgNode
-	case Entry => false
-	case Exit => false
-	case Node(l) => 
-		var s := FindSubstatement(S, l);
-		match s
-		case Assignment(LHS,RHS) => v in LHS
-		case Skip => false
-		case SeqComp(S1,S2) => false
-		case IF(B0,Sthen,Selse) => false
-		case DO(B,Sloop) => false
-		case LocalDeclaration(L,S0) => false
-		case Live(L,S0) => false
-		case Assert(B) => false
-
-}
-
-predicate NoDefPath(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
-	requires Core(S)
-	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
-{
-	exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, cfg.0) && (forall node :: node in Nodes(path) ==> !DefInCFGNode(S, node, v'))
-}
-
-predicate ReachingDefinition(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
-	requires Core(S)
-	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
-{
-	DefInCFGNode(S, cfgNode', v') && exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, cfg.0) && (forall node :: node in Nodes(path) - {cfgNode'} ==> !DefInCFGNode(S, node, v'))
-}
-
-function Nodes(path: CFGPath): set<CFGNode>
-	decreases path
-{
-	match path
-	case Empty => {}
-	case Extend(prefix, n) => {n} + Nodes(prefix)
 }

@@ -130,6 +130,11 @@ function GetLoopBody(S: Statement): Statement
 	}
 }
 
+function GetRHSVariables(seqExp: seq<Expression>): set<Variable>
+{
+	if seqExp == [] then {} else seqExp[0].1 + GetRHSVariables(seqExp[1..])
+}
+
 //============================================================
 //					*** Validation ***
 //============================================================

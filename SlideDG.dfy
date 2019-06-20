@@ -2,11 +2,11 @@ include "PDG.dfy"
 //include "ProofUtil.dfy"
 
 // SlideDG Definitions:
-type Slide = (CFGNode, Variable, set<CFGNode>) // changed from PDGNode To CFGNode
+type Slide = (Label, Variable)
 type Edge = (Slide, Slide, set<Variable>)
 type SlideDG = (Statement, set<Slide>, map<Slide, set<Slide>>) // map from node to it's predecssors
 
-function method SlideCFGNode(s: Slide): CFGNode
+function method SlideLabel(s: Slide): Label
 {
 	s.0
 }
@@ -14,11 +14,6 @@ function method SlideCFGNode(s: Slide): CFGNode
 function method SlideVariable(s: Slide): Variable
 {
 	s.1
-}
-
-function method SlideCFGNodes(s: Slide): set<CFGNode>
-{
-	s.2
 }
 
 function method SlideDGStatement(slideDG: SlideDG): Statement
@@ -41,12 +36,12 @@ predicate ExistsEdge(slide1: Slide, slide2: Slide, slideDG: SlideDG)
 	slide2 in SlideDGMap(slideDG) && slide1 in SlideDGMap(slideDG)[slide2]
 }
 
-method ComputeSlideDG(S: Statement, cfg: CFG) returns (slideDG: SlideDG)
+method ComputeSlideDG(S: Statement, labels: set<Label>) returns (slideDG: SlideDG) // labels should be all labels of S of Assignment, IF and DO (NOT SeqComp and Skip)
 	requires Core(S)
-	//ensures SlideDGOf(S, cfg) == ComputeSlideDG(S, cfg)
+	//ensures SlideDGOf(S, labels) == ComputeSlideDG(S, labels)
 	//ensures IsSlideDGOf(slideDG, S)
 {
-	var N := ComputeSlideDGNodes(S, cfg.0);
+	var N := ComputeSlideDGNodes(S, labels);
 	var E := ComputeSlideDGEdges(S, N);
 	var m : map<Slide, set<Slide>>; // TODO
 
@@ -55,72 +50,47 @@ method ComputeSlideDG(S: Statement, cfg: CFG) returns (slideDG: SlideDG)
 
 predicate IsSlideDGOf(slideDG: SlideDG, S: Statement)
 {
-	//forall Sm, Sn :: Sm in SlideDGSlides(slideDG) && Sn in SlideDGSlides(slideDG) ==>
-		//(exists e: Edge :: e in EdgesOf(slideDG) && e.0 == Sm && e.1 == Sn <==> SlideDependence(CFGOf(S), Sm, Sn, S))
-
-
-	//SlideDGStatement(slideDG) == S &&     && 
-	SlideDGOf(S, CFGOf(S)) == slideDG
-
-	//(S, set<Slide>, map<Slide, set<Slide>>)
+	SlideDGOf(S) == slideDG
 }
 
 lemma ExistsSlideDependence(slideDG: SlideDG, S: Statement, Sm: Slide, Sn: Slide)
 	requires IsSlideDGOf(slideDG, S)
 	requires Sm in SlideDGSlides(slideDG)
 	requires Sn in SlideDGSlides(slideDG)
-	ensures exists e: Edge :: e in EdgesOf(slideDG) && e.0 == Sm && e.1 == Sn <==> SlideDependence(CFGOf(S), Sm, Sn, S)
+	//ensures exists e: Edge :: e in EdgesOf(slideDG) && e.0 == Sm && e.1 == Sn <==> SlideDependence(Sm, Sn, S)
 
-function SlideDGOf(S: Statement, cfg: CFG): SlideDG
-
-// With CFG instead of PDG:
-method {:verify false}ComputeSlideDGNodes(S: Statement, cfgN: set<CFGNode>) returns (slides: set<Slide>)
-	requires Core(S)
+function SlideDGOf(S: Statement): SlideDG
+	requires Valid(S) && Core(S)
 {
-	slides := {};
-	var copyCFGN := cfgN;
+	var slides := slidesOf(S, def(S));
+	var m := map s | s in slides :: SlideDependencePredecessorsOf(s, S);
 
-	while (|copyCFGN| > 0)
-	{
-		var cfgNode :| cfgNode in copyCFGN;
-		copyCFGN := copyCFGN - {cfgNode};
-		match cfgNode {
-			case Entry =>
-			case Exit =>
-			case Node(l) => 
-				var subS := FindSubstatement(S, l);
-				match subS {
-					case Assignment(LHS,RHS) =>
-						var v: Variable;
-						var slide := ComputeSlide(S, v /* LHS? */, l);
-						slides := slides + {slide};
-				}
-		}
-	}
+	(S, slides, m)
 }
 
-function SlideDGNodes(S: Statement, cfgN: set<CFGNode>) : set<Slide>
-
-/*method ComputeSlideDGNodes(S: Statement, pdgN: set<PDGNode>) returns (slides: set<Slide>)
-	requires Core(S)
+function SlideDependencePredecessorsOf(Sn: Slide, S: Statement): set<Slide>
+	requires Valid(S) && Core(S)
+	requires Sn in slidesOf(S, def(S))
 {
-	slides := {};
-	var copyPDGN := pdgN;
+	set Sm | Sm in slidesOf(S, def(S)) && SlideDependence(Sm, Sn, S)
+}
 
-	while (|copyPDGN| > 0)
+method {:verify false}ComputeSlideDGNodes(S: Statement, labels: set<Label>) returns (slides: set<Slide>)
+	requires Core(S)
+/*{
+	slides := {};
+
+	var tempLabels := labels;
+	while (|tempLabels| > 0)
 	{
-		var pdgNode :| pdgNode in copyPDGN;
-		copyPDGN := copyPDGN - {pdgNode};
-		match pdgNode {
-			case Entry =>
-			case Node(l) => 
-				var subS := FindSubstatement(S, l);
-				match subS {
-					case Assignment(LHS,RHS) =>
-						var v: Variable;
-						var slide := ComputeSlide(S, v /* LHS? */, l);
-						slides := slides + {slide};
-				}
+		var l :| l in labels;
+		tempLabels := tempLabels - {l};
+		var subS := slipOf(S, l);
+		match subS {
+			case Assignment(LHS,RHS) =>
+				var v: Variable;
+				var slide := ComputeSlide(S, v /* LHS? */, l);
+				slides := slides + {slide};
 		}
 	}
 }*/
@@ -203,25 +173,34 @@ function {:verify false}slidesOf(S: Statement, V: set<Variable>) : set<Slide>
 	reads *
 	requires Valid(S)
 	requires Core(S)
-	ensures forall s :: s in slidesOf(S, V) ==> assume s.0 != CFGNode.Entry && s.0 != CFGNode.Exit; match s.0 { case Node(l1) => ValidLabel(l1, S) && !IsEmptyAssignment(slipOf(S, l1))}
+	ensures forall s :: s in slidesOf(S, V) ==> ValidLabel(SlideLabel(s), S) && !IsEmptyAssignment(slipOf(S, SlideLabel(s)))
 {
-	slidesOf'(S, V, [], {})
+	slidesOf'(S, V, [])
 }
 
-function {:verify false}slidesOf'(S: Statement, V: set<Variable>, l: Label, nodes: set<CFGNode>): (slides: set<Slide>)
+function {:verify false}slidesOf'(S: Statement, V: set<Variable>, l: Label): (slides: set<Slide>)
 	reads *
 	requires Valid(S)
 	requires Core(S)
-	ensures forall s :: s in slides ==> assume s.0 != CFGNode.Entry && s.0 != CFGNode.Exit; match s.0 { case Node(l1) => ValidLabel(l1, S) && !IsEmptyAssignment(slipOf(S, l1))}
+	ensures forall s :: s in slides ==> ValidLabel(SlideLabel(s), S) && !IsEmptyAssignment(slipOf(S, SlideLabel(s)))
 {
 	match S {
 	case Skip => {}
-	case Assignment(LHS,RHS) => set v | v in V * setOf(LHS) :: (CFGNode.Node(l), v, nodes)
-	case SeqComp(S1,S2) =>		slidesOf'(S1, V, l+[1], nodes) + slidesOf'(S2, V, l+[2], nodes)
-	case IF(B0,Sthen,Selse) =>	slidesOf'(Sthen, V, l+[1], nodes + {CFGNode.Node(l)}) + slidesOf'(Selse, V, l+[2], nodes + {CFGNode.Node(l)})
-	case DO(B,Sloop) =>			slidesOf'(Sloop, V, l+[1], nodes + {CFGNode.Node(l)})
+	case Assignment(LHS,RHS) => set v | v in V * setOf(LHS) :: (l, v)
+	case SeqComp(S1,S2) =>		slidesOf'(S1, V, l+[1]) + slidesOf'(S2, V, l+[2])
+	case IF(B0,Sthen,Selse) =>	slidesOf'(Sthen, V, l+[1]) + slidesOf'(Selse, V, l+[2])
+	case DO(B,Sloop) =>			slidesOf'(Sloop, V, l+[1])
 	}
 }
+
+function SlideLabels(s: Slide, S: Statement): set<Label>
+	requires Valid(S) && Core(S)
+	requires s in slidesOf(S, def(S))
+{
+	set l | l == SlideLabel(s) ||
+	(l < SlideLabel(s) && (IsDO(slipOf(S, l)) || IsIF(slipOf(S, l))))
+}
+
 
 datatype SlideDGPath = Empty | Extend(SlideDGPath, Slide)
 
@@ -281,63 +260,105 @@ function SlideDGNeighbours(slideDG: SlideDG, n: Slide) : set<Slide>
 
 ////////// Slide Dependence: ////////////
 
-predicate SlideDependence(cfg: CFG, m: Slide, n: Slide, S: Statement)
-	// For n, exists n' in n.cfgNodes, this n' includes v (v is defined in m) and uses v and there exists a cfg-path with no more defs to v..
+predicate SlideDependence(Sm: Slide, Sn: Slide, S: Statement)
 	requires Valid(S) && Core(S)
+	requires Sm in slidesOf(S, def(S)) && Sn in slidesOf(S, def(S))
 {
-	var v := SlideVariable(m);
-	exists n' :: n' in SlideCFGNodes(n) && 
-	match n' {
-		case Node(l) => v in UsedVars(S, l) && ReachingDefinition(S, cfg, n', SlideCFGNode(m), v)
-		case Entry => false
-		case Exit => false
+	var v := SlideVariable(Sm);
+	exists l :: l in SlideLabels(Sn, S) && 
+	v in UsedVars(S, l) && ReachingDefinition(S, SlideLabel(Sm), l, v)
+}
+
+predicate ReachingDefinition(S: Statement, l1: Label, l2: Label, v: Variable)
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l1, S) && ValidLabel(l2, S)
+{
+	(v, l1) in ReachingDefinitionsIn(S, l2)
+}
+
+function ReachingDefinitionsIn(S: Statement, l: Label): set<(Variable, Label)>
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l, S)
+{
+	var V := def(S);
+	var rdIn: set<(Variable, Label)> := set v | v in V :: (v, []);
+	ReachingDefinitionsInRec(S, rdIn, l)
+
+	// ReachingDefinitionsInRec(S, {}, l) // instead of {} use (v,[]) for each variable in S
+}
+
+function ReachingDefinitionsInRec(S: Statement, rdIn: set<(Variable, Label)>, l: Label): set<(Variable, Label)>
+	requires Valid(S) && Core(S)
+	requires ValidLabel(l, S)
+{
+	if l == [] then rdIn else
+	assert !IsAssignment(S) && !IsSkip(S);
+	match S {
+		case SeqComp(S1,S2) =>
+			if l[0] == 1 then ReachingDefinitionsInRec(S1, rdIn, l[1..])
+			else ReachingDefinitionsInRec(S2, ReachingDefinitionsOut(S1, rdIn), l[1..])
+		case IF(B0,Sthen,Selse) =>
+			if l[0] == 1 then ReachingDefinitionsInRec(Sthen, rdIn, l[1..])
+			else ReachingDefinitionsInRec(Selse, rdIn, l[1..])
+		case DO(B,Sloop) =>
+			ReachingDefinitionsInRec(Sloop, rdIn + ReachingDefinitionsOut(Sloop, rdIn), l[1..])
 	}
 }
 
-predicate ReachingDefinition(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
+function ReachingDefinitionsOut(S: Statement, rdIn: set<(Variable, Label)>): set<(Variable, Label)>
 	requires Valid(S) && Core(S)
-	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
 {
-	DefInCFGNode(S, cfgNode', v') && exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, CFGNodes(cfg)) && (forall node :: node in Nodes(path) - {cfgNode'} ==> !DefInCFGNode(S, node, v'))
+	ReachingDefinitionsOutRec(S, rdIn, [])
 }
 
-predicate DefInCFGNode(S: Statement, cfgNode: CFGNode, v: Variable)
+function ReachingDefinitionsOutRec(S: Statement, rdIn: set<(Variable, Label)>, l: Label): set<(Variable, Label)>
 	requires Valid(S) && Core(S)
-	// Check if cfgNode defines v.
+	requires ValidLabel(l, S)
 {
-	match cfgNode
-	case Entry => false
-	case Exit => false
-	case Node(l) => 
-		var s := FindSubstatement(S, l);
-		match s
-		case Assignment(LHS,RHS) => v in LHS
-		case Skip => false
-		case SeqComp(S1,S2) => false
-		case IF(B0,Sthen,Selse) => false
-		case DO(B,Sloop) => false
-		case LocalDeclaration(L,S0) => false
-		case Live(L,S0) => false
-		case Assert(B) => false
-
+	match S {
+		case Assignment(LHS,RHS) => RDKill(LHS, rdIn) + RDGen(LHS, l)
+		case Skip => rdIn
+		case SeqComp(S1,S2) => ReachingDefinitionsOutRec(S2, ReachingDefinitionsOutRec(S1, rdIn, l+[1]), l+[2])
+		case IF(B0,Sthen,Selse) => ReachingDefinitionsOutRec(Sthen, rdIn, l+[1]) + ReachingDefinitionsOutRec(Selse, rdIn, l+[2])
+		case DO(B,Sloop) => rdIn + ReachingDefinitionsOutRec(Sloop, {}, l+[1])
+	}
 }
 
-predicate NoDefPath(S: Statement, cfg: CFG, cfgNode: CFGNode, cfgNode': CFGNode, v': Variable)
-	requires Valid(S) && Core(S)
-	// Check if path from cfgNode' to cfgNode exists (in cfg), that doesn't include more def to v'.
+function RDKill(V: seq<Variable>, rdIn: set<(Variable, Label)>): set<(Variable, Label)>
 {
-	exists path: CFGPath :: CFGReachableVia(cfgNode', path, cfgNode, CFGNodes(cfg)) && (forall node :: node in Nodes(path) ==> !DefInCFGNode(S, node, v'))
+	if V == [] then rdIn
+	else
+		var s := set p | p in rdIn && V[0] == p.0;
+		RDKill(V[1..], rdIn - s)
 }
 
-function Nodes(path: CFGPath): set<CFGNode>
-	decreases path
+function RDGen(V: seq<Variable>, l: Label): set<(Variable, Label)>
 {
-	match path
-	case Empty => {}
-	case Extend(prefix, n) => {n} + Nodes(prefix)
+	set v | v in V :: (v, l)
 }
 
-function ReachingDefinitions(S: Statement, cfg: CFG, cfgNode: CFGNode): (res: set<(CFGNode, Variable)>)
-	requires cfgNode in CFGNodes(cfg)
+function ReachingDefinitionsInFor(S: Statement, l: Label, v: Variable): set<(Variable, Label)>
+{
+	var rdIn := ReachingDefinitionsIn(S, l);
+
+	set p | p in rdIn && p.0 == v
+}
+
+//////////////   From CFG.dfy:   ////////////////
+
+function UsedVars(S: Statement, l: Label): set<Variable>
 	requires Valid(S) && Core(S)
-	ensures forall pair :: pair in res <==> ReachingDefinition(S, cfg, cfgNode, pair.0, pair.1)
+	requires ValidLabel(l, S)
+{
+	var slipOfS := slipOf(S, l);
+
+	match S {
+	case Assignment(LHS,RHS) => set v | v in GetRHSVariables(RHS)
+	case SeqComp(S1,S2) => {}
+	case IF(B,Sthen,Selse) => set v | v in B.1
+	case DO(B,S0) => set v | v in B.1
+	case Skip => {}
+	}
+}
+
+function DefinedVars(S: Statement, l: Label): set<Variable>

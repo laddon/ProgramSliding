@@ -11,13 +11,11 @@ include "ProofUtil.dfy"
 function {:verify true}SliceOf(S: Statement, V: set<Variable>): (set<Slide>, Statement)
 	reads *
 	requires Valid(S) && Core(S)
-	ensures forall Sm :: Sm in SliceOf(S,V).0 <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))))
+	ensures forall Sm :: Sm in SliceOf(S,V).0 <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))))
 	ensures Valid(SliceOf(S,V).1) && Core(SliceOf(S,V).1)
 {
-	var cfg := ComputeCFG(S);
-	assert cfg == CFGOf(S);
-	var slideDG := SlideDGOf(S, cfg);
-	var slidesSV := set Sm | (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
+	var slideDG := SlideDGOf(S);
+	var slidesSV := set Sm | (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
 
 	(slidesSV, statementOf(slidesSV, S))
 }
@@ -75,7 +73,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 	assume Substatement(SV', S'); /////////////////////////////////////////////////////////////////////
 	ghost var varSlidesSV: set<VarSlide> := varSlidesOf(SV', V');
 	//assert forall Sm :: Sm in varSlidesSV <==> (exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', Sm, Sn, VarSlideDGVarSlides(varSlideDGS')));	 // Implement VarSlideDGReachable
-	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
+	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
 	
 	assert Valid(S) && Core(S);
 	ghost var allSlides := slidesOf(S,def(S));
@@ -85,7 +83,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 	assert Valid(SV) && Core(SV); 
 	//ghost var slidesSV := slidesOf(SV,V);
 	ghost var slidesSV := SliceOfSV.0;
-	assert forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))));
+	assert forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))));
 	assume slidesSV <= allSlides;
 	
 	// From SSA
@@ -101,7 +99,7 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 	assert Substatement(SV, S);
 	
 	assume def(res) <= def(S);// by { assert Core(S) && Substatement(res,S); }
-	assert allSlidesOf(res) == slidesOf(res, def(S)) == SlideDGSlides(SlideDGOf(S, CFGOf(S)));
+	assert allSlidesOf(res) == slidesOf(res, def(S)) == SlideDGSlides(SlideDGOf(S));
 	assume def(SV) <= def(S);// by { assert Core(S) && Substatement(SliceOfSV,S); }
 	assert allSlidesOf(SV) == slidesOf(SV, def(S));
 	assert slidesOf(res, def(S)) <= slidesOf(S, def(S));
@@ -111,11 +109,11 @@ method {:verify true}ComputeSSASlice(S: Statement, V: set<Variable>, ghost varSl
 	assert slidesOf(res, def(S)) == slidesOf(SV, def(S)) by {
 		forall slide | slide in slidesOf(S, def(S)) ensures slide in slidesOf(res, def(S)) <==> slide in slidesOf(SV, def(S)) {
 			LemmaSlidesSVToVarSlidesSV(slide, S, S', SV', slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA, XLsSeq);
-			//assert forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV);
+			//assert forall slide :: slide in SlideDGSlides(SlideDGOf(S)) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV);
 			assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV;
 
 			LemmaVarSlidesSVToRes(slide, S, S', SV', res, slidesSV, varSlidesSV, X, V, V', varSlideDGS', vsSSA, XLsSeq, glob(S));
-			//assert forall slide :: slide in /*SlideDGSlides(SlideDGOf(S, CFGOf(S)))*/ slidesOf(S, def(S)) ==> (VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)));
+			//assert forall slide :: slide in /*SlideDGSlides(SlideDGOf(S))*/ slidesOf(S, def(S)) ==> (VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S)));
 			assert VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S));
 		}
 	}
@@ -148,9 +146,9 @@ lemma LemmaIdenticalSlicesUsingSlips(S: Statement, S': Statement, SV': Statement
 	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
 	requires Substatement(SV', S')
 	requires RemoveEmptyAssignments(Rename(SV', XLs, X)) == res
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))))
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
-	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))))
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S',def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S)) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
 	requires ValidLabel(l, S) && ValidLabel(l, SV) && ValidLabel(l, res)
 	ensures slipOf(SV, l) == slipOf(res, l)
 	decreases maxLabelSize(S) - |l|
@@ -167,7 +165,7 @@ lemma LemmaIdenticalSlicesUsingSlips(S: Statement, S': Statement, SV': Statement
 		//assume MatchingSlips(S, SV, l);// by {}
 		
 		assert IsSkip(slipOf(SV, l)) <==> IsSkip(slipOf(res, l)) by {
-			L90(S, V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
+			L90(S, S', V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
 		}
 
 		if (IsSkip(slipOf(SV, l)))
@@ -232,14 +230,15 @@ lemma LemmaIdenticalSlicesUsingSlips(S: Statement, S': Statement, SV': Statement
 	}
 }
 
-lemma L90(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
+lemma L90(S: Statement, S': Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
 	requires Valid(S) && Valid(SV) && Valid(SV') && Valid(res)
 	requires Core(S) && Core(SV) && Core(SV') && Core(res)
 	requires SliceOf(S,V).1 == SV
 	requires RemoveEmptyAssignments(Rename(SV', XLs, X)) == res
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))))
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
-	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
+	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))))
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S)) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
 	requires ValidLabel(l, S) && ValidLabel(l, SV) && ValidLabel(l, res)
 	requires MatchingSlips(S, res, l)
 	ensures IsSkip(slipOf(SV, l)) <==> IsSkip(slipOf(res, l))
@@ -247,23 +246,24 @@ lemma L90(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': St
 	assert IsSkip(slipOf(SV, l)) <==> IsSkip(slipOf(res, l)) by {
 		if (IsSkip(slipOf(SV, l)))
 		{
-			L91(S, V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
+			L91(S, S', V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
 		}
 		else
 		{
-			L92(S, V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
+			L92(S, S', V, SV, res, SV', V', XLs, X, l, slidesSV, varSlidesSV, varSlideDGS');
 		}
 	}
 }
 
-lemma L91(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
+lemma L91(S: Statement, S': Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
 	requires Valid(S) && Valid(SV) && Valid(SV') && Valid(res)
 	requires Core(S) && Core(SV) && Core(SV') && Core(res)
 	requires SliceOf(S,V).1 == SV
 	requires RemoveEmptyAssignments(Rename(SV', XLs, X)) == res
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))))
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
-	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
+	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))))
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S)) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
 	requires ValidLabel(l, S) && ValidLabel(l, SV) && ValidLabel(l, res)
 	requires MatchingSlips(S, res, l)
 	requires IsSkip(slipOf(SV, l))
@@ -279,14 +279,15 @@ lemma L91(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': St
 	}
 }
 
-lemma L92(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
+lemma L92(S: Statement, S': Statement, V: set<Variable>, SV: Statement, res: Statement, SV': Statement, V': set<Variable>, XLs: seq<set<Variable>>, X: seq<Variable>, l: Label, slidesSV: set<Slide>, varSlidesSV: set<VarSlide>, varSlideDGS': VarSlideDG) // should be called with l==[]
 	requires Valid(S) && Valid(SV) && Valid(SV') && Valid(res)
 	requires Core(S) && Core(SV) && Core(SV') && Core(res)
 	requires SliceOf(S,V).1 == SV
 	requires RemoveEmptyAssignments(Rename(SV', XLs, X)) == res
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))))
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
-	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
+	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))))
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall slide :: slide in SlideDGSlides(SlideDGOf(S)) ==> (slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV)
 	requires ValidLabel(l, S) && ValidLabel(l, SV) && ValidLabel(l, res)
 	requires !IsSkip(slipOf(SV, l))
 	ensures !IsSkip(slipOf(res, l))
@@ -307,7 +308,9 @@ lemma L92(S: Statement, V: set<Variable>, SV: Statement, res: Statement, SV': St
 			preLabel != {}; // כי במינימום יש בקבוצה את הסלייד שמייצג את הלייבל l
 		==> { assert |preLabel| == |preVarLabel|; }
 			preVarLabel != {};
-		==> { assert forall vSlide :: vSlide in preVarLabel ==> varLabel <= VarSlideLabel(vSlide); }
+		==> { assert forall vSlide :: vSlide in preVarLabel ==> 
+			  var vSlideLabel :| vSlideLabel in VarSlideLabels2(S', vSlide);
+			  varLabel <= vSlideLabel; } // instead of: assert forall vSlide :: vSlide in preVarLabel ==> varLabel <= VarSlideLabel(vSlide);
 			exists vLabel :: ValidLabel(vLabel, SV') && varLabel <= vLabel && IsAssignment(slipOf(SV', vLabel));
 		==>
 			!IsSkip(slipOf(SV', varLabel));
@@ -495,14 +498,13 @@ lemma L98(SV': Statement, l': Label, res: Statement, l: Label, XLs: seq<set<Vari
 }
 
 function PrefixOfSlideLabel(slidesSV: set<Slide>, l: Label): set<Slide>
-	//requires exists s :: s in slidesSV ==> match SlideCFGNode(s) { case Node(ls) => l == ls }
+	//requires exists s :: s in slidesSV ==> l == SlideLabel(s)
 	//ensures PrefixOfSlideLabel(slidesSV, l) != {}
 {
 	if slidesSV == {} then {} else
 	var s :| s in slidesSV;
-	match SlideCFGNode(s) {
-	case Node(ls) => if l <= ls then PrefixOfSlideLabel(slidesSV - {s}, l) + {s} else PrefixOfSlideLabel(slidesSV - {s}, l)
-	}
+	var ls := SlideLabel(s);
+	if l <= ls then PrefixOfSlideLabel(slidesSV - {s}, l) + {s} else PrefixOfSlideLabel(slidesSV - {s}, l)
 }
 
 function PrefixOfVarSlideLabel(varSlidesSV: set<VarSlide>, l: Label): set<VarSlide>
@@ -541,8 +543,8 @@ lemma LemmaVarSlidesSVToRes(slide: Slide, S: Statement, S': Statement, SV': Stat
 	requires Substatement(res, S)
 	requires Substatement(SV', S')
 	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X)) // FromSSA Post-condition
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
 	requires slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
 	ensures VarSlideOf(S, S', slide) in varSlidesSV <==> slide in slidesOf(res, def(S))
 {
@@ -573,48 +575,44 @@ lemma L60(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 	requires vSlide == VarSlideOf(S, S', slide) && vSlide in varSlidesSV
 	requires Substatement(res, S)
 	requires Substatement(SV', S')
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
 	requires slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
 	requires res == RemoveEmptyAssignments(Rename(SV', XLs, X)) // FromSSA Post-condition
 	ensures slide in slidesOf(res, def(S))
 {
 	assert slide in slidesOf(S, def(S));
 	assert slide in slidesSV by { assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV; }
-	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
-	assert vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS'));
+	assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
+	assert vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS'));
 					
 	var v := SlideVariable(slide);
-	match SlideCFGNode(slide) {
-	case Node(l) => 
-		var vLabel := VarLabelOf(S, S', l);
-		assert ValidLabel(vLabel, S');
-			
-		assert ValidLabel(l, res) && IsAssignment(slipOf(res, l)) && v in def(slipOf(res, l)) by {
-			assert ValidLabel(l, res) by {
-				assert ValidLabel(l, S);
-				ghost var allLabelsRenameSV' := allLabelsOf(Rename(SV', XLs, X));
-				ghost var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(SV', XLs, X), allLabelsRenameSV');
-				var l' := LabelOf(selfEmptyLabelsSV', vLabel);
-				assume ValidLabel(vLabel, SV');
-				assume ValidLabel(l', res);
-				IdenticalLabels(S, S', SV', res, l, vLabel, l', XLs, X, selfEmptyLabelsSV', globS);
-			}
-			assert IsAssignment(slipOf(res, l)) by {
-				assert ValidLabel(l, S);
-				assume IsAssignment(slipOf(S, l));
-				assert Substatement(res, S);
-				assume !IsSkip(slipOf(res, l));
-				//assume ValidLabel(vLabel, SV');
-				//assume MatchingSlipsFromSSA(SV', vLabel, res, l);
-				assume MatchingSlips(S, res, l);
-			}
-			assert v in def(slipOf(res, l)) by {
-				assert Substatement(res, S);
-			}
+	var l := SlideLabel(slide);
+	var vLabel := VarLabelOf(S, S', l);
+
+	assert ValidLabel(vLabel, S');
+	assert ValidLabel(l, res) && IsAssignment(slipOf(res, l)) && v in def(slipOf(res, l)) by {
+		assert ValidLabel(l, res) by {
+			assert ValidLabel(l, S);
+			ghost var allLabelsRenameSV' := allLabelsOf(Rename(SV', XLs, X));
+			ghost var selfEmptyLabelsSV' := selfEmptyLabelsOf(Rename(SV', XLs, X), allLabelsRenameSV');
+			var l' := LabelOf(selfEmptyLabelsSV', vLabel);
+			assume ValidLabel(vLabel, SV');
+			assume ValidLabel(l', res);
+			IdenticalLabels(S, S', SV', res, l, vLabel, l', XLs, X, selfEmptyLabelsSV', globS);
 		}
-	case Exit => assert slide in slidesOf(res, def(S)); // מיותר?
-	case Entry => assert slide in slidesOf(res, def(S)); // מיותר?
+		assert IsAssignment(slipOf(res, l)) by {
+			assert ValidLabel(l, S);
+			assume IsAssignment(slipOf(S, l));
+			assert Substatement(res, S);
+			assume !IsSkip(slipOf(res, l));
+			//assume ValidLabel(vLabel, SV');
+			//assume MatchingSlipsFromSSA(SV', vLabel, res, l);
+			assume MatchingSlips(S, res, l);
+		}
+		assert v in def(slipOf(res, l)) by {
+			assert Substatement(res, S);
+		}
 	}		
 }
 
@@ -719,25 +717,23 @@ lemma L61(slide: Slide, vSlide: VarSlide, S: Statement, S': Statement, SV': Stat
 	requires slide in slidesOf(S, def(S))
 	requires vSlide == VarSlideOf(S, S', slide) && vSlide !in varSlidesSV
 	requires Substatement(res, S)
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
 	requires slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
 	ensures slide !in slidesOf(res, def(S))
 {
 	assert slide !in slidesOf(res, def(S)) by {
 		var u := SlideVariable(slide);
-		match SlideCFGNode(slide) {
-		case Node(l) => // להראות בתזה דוגמא של 3 האופציות
-			assert !ValidLabel(l, res) || IsSkip(slipOf(res, l)) || (IsAssignment(slipOf(res, l)) && u !in def(slipOf(res, l))) by {
-				assert vSlide == VarSlideOf(S, S', slide);
-				assert vSlide !in varSlidesSV;
-				var u' := VarSlideVariable(vSlide);
-				var varLabel := VarSlideLabel(vSlide);
-				/////////////////// לבדוק את השורות הבאות
-				//assert ValidLabel(l, S);
-				assert ValidLabel(varLabel, S') && IsAssignment(slipOf(S', varLabel)) && u' in def(slipOf(S', varLabel));
-				assert !ValidLabel(varLabel, SV') || IsSkip(slipOf(SV', varLabel)) || (IsAssignment(slipOf(SV', varLabel)) && u' !in def(slipOf(SV', varLabel)));
-			}
+		var l := SlideLabel(slide);
+		assert !ValidLabel(l, res) || IsSkip(slipOf(res, l)) || (IsAssignment(slipOf(res, l)) && u !in def(slipOf(res, l))) by {
+			assert vSlide == VarSlideOf(S, S', slide);
+			assert vSlide !in varSlidesSV;
+			var u' := VarSlideVariable(vSlide);
+			var varLabel :| varLabel in VarSlideLabels2(S', vSlide); // instead of: var varLabel := VarSlideLabel(vSlide);
+			/////////////////// לבדוק את השורות הבאות
+			//assert ValidLabel(l, S);
+			assert ValidLabel(varLabel, S') && IsAssignment(slipOf(S', varLabel)) && u' in def(slipOf(S', varLabel));
+			assert !ValidLabel(varLabel, SV') || IsSkip(slipOf(SV', varLabel)) || (IsAssignment(slipOf(SV', varLabel)) && u' !in def(slipOf(SV', varLabel)));
 		}
 	}	
 }
@@ -749,8 +745,8 @@ lemma LemmaSlidesSVToVarSlidesSV(slide: Slide, S: Statement, S': Statement, SV':
 	requires ValidVsSSA(vsSSA)
 	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
 	requires slide in slidesOf(S, def(S))
-	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S, CFGOf(S)), CFGOf(S), V) && SlideDGReachable(SlideDGOf(S, CFGOf(S)), Sm, Sn, SlideDGSlides(SlideDGOf(S, CFGOf(S)))));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
+	requires forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, SlideDGOf(S), V) && SlideDGReachable(SlideDGOf(S), Sm, Sn, SlideDGSlides(SlideDGOf(S))));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')))
 	ensures slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV
 {
 	assert slide in slidesSV <==> VarSlideOf(S, S', slide) in varSlidesSV by {
@@ -762,11 +758,11 @@ lemma LemmaSlidesSVToVarSlidesSV(slide: Slide, S: Statement, S': Statement, SV':
 		}
 		else
 		{
-			assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
+			assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDGS', vSlide, Sn, VarSlideDGVarSlides(varSlideDGS')));
 			// ^p ==> ^q:
 			L2(slide, S, S', SV', slidesSV, varSlidesSV, V, V', varSlideDGS', vsSSA);
 			assert VarSlideOf(S, S', slide) !in varSlidesSV;
-			//assert forall slide :: slide in SlideDGSlides(SlideDGOf(S, CFGOf(S))) - slidesSV ==> VarSlideOf(S, S', slide) !in varSlidesSV;
+			//assert forall slide :: slide in SlideDGSlides(SlideDGOf(S)) - slidesSV ==> VarSlideOf(S, S', slide) !in varSlidesSV;
 		}
 	}
 }
@@ -782,20 +778,19 @@ lemma {:verify true}L1(slide: Slide, S: Statement, S': Statement, SV': Statement
 {
 	assert slide in slidesSV;
 	var varSlide := VarSlideOf(S, S', slide);
-	var cfg := ComputeCFG(S);
-	var slideDG := SlideDGOf(S, cfg);
+	var slideDG := SlideDGOf(S);
 
 	assert varSlide in varSlidesSV by {
 		assert exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, Sn/*sum4*/, VarSlideDGVarSlides(varSlideDG)) by {
 			var finalDefSlide;
-			if slide in finalDefSlides(S, slideDG, cfg, V)
+			if slide in finalDefSlides(S, slideDG, V)
 			{
 				finalDefSlide := slide;
 				assert SlideDGReachable(slideDG, slide, finalDefSlide, SlideDGSlides(slideDG));
 			}
 			else
 			{ // i1 --> sum5 --> sum4 , sum5 is pre of sum4 via phi only
-				finalDefSlide :| finalDefSlide in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, finalDefSlide, SlideDGSlides(slideDG));
+				finalDefSlide :| finalDefSlide in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, finalDefSlide, SlideDGSlides(slideDG));
 			} 
 				
 			var finalDefVarSlide := VarSlideOf(S, S', finalDefSlide);
@@ -824,8 +819,8 @@ lemma {:verify true}L1(slide: Slide, S: Statement, S': Statement, SV': Statement
 				assert slideOfV' != finalDefVarSlide; // צריך להוכיח מסלול ביניהם
 				//assert VarSlideDGReachable(varSlideDG, finalDefVarSlide/*sum5*/, slideOfV'/*sum4*/, VarSlideDGVarSlides(varSlideDG));
 				assert finalDefVarSlide in RegularPredecessorSlides(slideOfV', varSlideDG, varSlidesOf(SV', V')) by {
-					var finalDefVarSlides := set slide, varSlide | slide in finalDefSlides(S, slideDG, cfg, V) && varSlide in varSlidesOf(S,def(S)) && varSlide == VarSlideOf(S, S', slide) :: varSlide;
-					//////////////L4(X, vsSSA, v', V', instancesOfFinalDefSlide, finalDefSlide, S, slideDG, cfg, V, slide, slidesSV, slideOfV', finalDefVarSlides, varSlideDG, SV');
+					var finalDefVarSlides := set slide, varSlide | slide in finalDefSlides(S, slideDG, V) && varSlide in varSlidesOf(S', def(S)) && varSlide == VarSlideOf(S, S', slide) :: varSlide;
+					//////////////L4(X, vsSSA, v', V', instancesOfFinalDefSlide, finalDefSlide, S, slideDG, V, slide, slidesSV, slideOfV', finalDefVarSlides, varSlideDG, SV');
 				}
 			}
 		}
@@ -837,204 +832,230 @@ lemma {:verify false}L2(slide: Slide, S: Statement, S': Statement, SV': Statemen
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
-	requires var slideDG := SlideDGOf(S, CFGOf(S)); forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, CFGOf(S), V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
-	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, VarSlideDGVarSlides(varSlideDG)));
+	requires var slideDG := SlideDGOf(S); forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
+	requires forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, VarSlideDGVarSlides(varSlideDG)));
 	requires slide !in slidesSV
 	ensures VarSlideOf(S, S', slide) !in varSlidesSV;
 {
-	var cfg := ComputeCFG(S);
-	var slideDG := SlideDGOf(S, cfg); 
-	assume slideDG == SlideDGOf(S, cfg); 
-	assume cfg == CFGOf(S);
+	var slideDG := SlideDGOf(S); 
+	assume slideDG == SlideDGOf(S); 
 
 	var varSlide := VarSlideOf(S, S', slide);
 	assert varSlide == VarSlideOf(S, S', slide);
 		
-	assert !(slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))) by {
-		assert forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
+	assert !(slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))) by {
+		assert forall Sm :: Sm in slidesSV <==> (Sm in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, Sm, Sn, SlideDGSlides(slideDG)));
 		assert slide !in slidesSV;
 	} 
 		 
 	assert varSlide !in varSlidesSV by {
 		calc {
 			varSlide in varSlidesSV;
-		==> { assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, VarSlideDGVarSlides(varSlideDG))); }
-			varSlide in varSlidesOf(S,def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, Sn/*sum4*/, VarSlideDGVarSlides(varSlideDG));
+		==> { assert forall vSlide :: vSlide in varSlidesSV ==> (vSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, vSlide, Sn, VarSlideDGVarSlides(varSlideDG))); }
+			varSlide in varSlidesOf(S', def(S)) && exists Sn: VarSlide :: VarSlideVariable(Sn) in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, Sn/*sum4*/, VarSlideDGVarSlides(varSlideDG));
 		==> { assert varSlide == VarSlideOf(S, S', slide);
-			  L5(slide, varSlide, S, S', SV', V, V', slideDG, cfg, varSlideDG, vsSSA); }
-			slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG));
-		==> { assert !(slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))); }	
+			  L5(slide, varSlide, S, S', SV', V, V', slideDG, varSlideDG, vsSSA); }
+			slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG));
+		==> { assert !(slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))); }	
 			false;
 		}
 	}	
 }
 
-lemma {:verify false}L5(slide: Slide, varSlide: VarSlide, S: Statement, S': Statement, SV': Statement, V: set<Variable>, V': set<Variable>, slideDG: SlideDG, cfg: CFG, varSlideDG: VarSlideDG, vsSSA: VariablesSSA)
+lemma {:verify false}L5(slide: Slide, varSlide: VarSlide, S: Statement, S': Statement, SV': Statement, V: set<Variable>, V': set<Variable>, slideDG: SlideDG, varSlideDG: VarSlideDG, vsSSA: VariablesSSA)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires Valid(SV') && Core(SV')
 	requires VarSlideTag(varSlide) == Regular
 	requires varSlide == VarSlideOf(S, S', slide) 
-	requires varSlide in varSlidesOf(S,def(S)) && exists varSn: VarSlide :: VarSlideVariable(varSn) in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, varSn/*sum4*/, VarSlideDGVarSlides(varSlideDG))
-	ensures slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))
-/*{
-	var varSn: VarSlide :| VarSlideVariable(varSn) in V' && VarSlideDGReachable(varSlideDG, varSlide, varSn, VarSlideDGVarSlides(varSlideDG));
+	requires varSlide in varSlidesOf(S', def(S)) && exists varSn: VarSlide :: VarSlideVariable(varSn) in V' && VarSlideDGReachable(varSlideDG, varSlide/*i1*/, varSn/*sum4*/, VarSlideDGVarSlides(varSlideDG))
+	ensures slide in slidesOf(S,def(S)) && exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG))
+{
+	var varSlideOfV': VarSlide :| VarSlideVariable(varSn) in V' && VarSlideDGReachable(varSlideDG, varSlide, varSn, VarSlideDGVarSlides(varSlideDG));
 	var Sn;
 
-	if VarSlideTag(varSn) == Regular
+	if VarSlideTag(varSlideOfV') == Regular
 	{
-		Sn := SlideOf(SV, SV', varSn);
-		PathBackCorrespondence(slideDG, varSlideDG, slide, Sn, SV, SV');
-		assert SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)); // From PathBackCorrespondence
-		assert Sn in finalDefSlides(S, slideDG, cfg, V) by {
-			L6(varSn, V, V', S, SV, SV', slideDG, cfg);
+		Sn := SlideOf(SV, SV', varSlideOfV');
+		assert Sn in finalDefSlides(S, slideDG, V) by {
+			L6(varSlideOfV', V, V', S, SV, SV', slideDG);
 		}
-		assert Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)); // From the two above
 	}
 	else
 	{
-		var rpsVarSn := RegularPredecessorSlides(varSn, varSlideDG, varSlidesOf(SV', V'));
+		/*var rpsVarSn := RegularPredecessorSlides(varSlideOfV', varSlideDG, varSlidesOf(SV', V'));
+		/// הקבוצה היא בעצם כל הוארסליידים שהסליידים התואמים להם הם פיינל דפים.
+		// אז המטרה כאן היא למצוא איזשהו פיינל דף.
 		var Sn' :| Sn' in rpsVarSn && VarSlideDGReachable(varSlideDG, varSlide, Sn', VarSlideDGVarSlides(varSlideDG)) && vsSSA.getVariableInRegularFormFunc(VarSlideVariable(Sn')) in V;
+		*/
+		var Sn' := backward scan the path between varslide and varSlideOfV' and find the first regular varslide that is not varSn;
 		Sn := SlideOf(SV, SV', Sn');
-		PathBackCorrespondence(slideDG, varSlideDG, slide, Sn, SV, SV');
-		assert SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)); // From PathBackCorrespondence
-		assert Sn in finalDefSlides(S, slideDG, cfg, V) by {
-			L7(varSn, V, V', S, SV, SV', slideDG, cfg, varSlideDG, varSlide, Sn', rpsVarSn, vsSSA);
+		assert Sn in finalDefSlides(S, slideDG, V) by {
+			L7(varSlideOfV', V, V', S, SV, SV', slideDG, varSlideDG, varSlide, Sn', rpsVarSn, vsSSA);
 		}
-		assert Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)); // From the two above
 	}
-}*/
+
+	PathBackCorrespondence(slideDG, varSlideDG, slide, Sn, SV, SV');
+	assert SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)); // From PathBackCorrespondence
+	assert Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG));
+}
 /*
-lemma L6(varSn: VarSlide, V: set<Variable>, V': set<Variable>, S: Statement, SV: Statement, SV': Statement, slideDG: SlideDG, cfg: CFG)
+lemma L6(varSn: VarSlide, V: set<Variable>, V': set<Variable>, S: Statement, SV: Statement, SV': Statement, slideDG: SlideDG)
 	requires Valid(S) && Core(S)
 	requires Valid(SV) && Core(SV)
 	requires Valid(SV') && Core(SV')
 	requires VarSlideTag(varSn) == Regular
 	requires VarSlideVariable(varSn) in V'
-	ensures SlideOf(SV, SV', varSn) in finalDefSlides(S, slideDG, cfg, V)
+	ensures SlideOf(SV, SV', varSn) in finalDefSlides(S, slideDG, V)
 
-lemma L7(varSn: VarSlide, V: set<Variable>, V': set<Variable>, S: Statement, SV: Statement, SV': Statement, slideDG: SlideDG, cfg: CFG,
+lemma L7(varSn: VarSlide, V: set<Variable>, V': set<Variable>, S: Statement, SV: Statement, SV': Statement, slideDG: SlideDG,
 		 varSlideDG: VarSlideDG, varSlide: VarSlide, Sn': VarSlide, rpsVarSn: set<VarSlide>, vsSSA: VariablesSSA)
 	requires VarSlideTag(varSn) == Phi
 	requires VarSlideVariable(varSn) in V'
 	requires Sn' in rpsVarSn && VarSlideDGReachable(varSlideDG, varSlide, Sn', VarSlideDGVarSlides(varSlideDG)) && vsSSA.getVariableInRegularFormFunc(VarSlideVariable(Sn')) in V
-	ensures SlideOf(SV, SV', Sn') in finalDefSlides(S, slideDG, cfg, V)
+	ensures SlideOf(SV, SV', Sn') in finalDefSlides(S, slideDG, V)
 
 */
+
+function instancesOf(v: Variable, X: seq<Variable>, XLs: seq<set<Variable>>): set<Variable>
+{
+	if X == [] then {} else if X[0] == v then XLs[0] else instancesOf(v, X[1..], XLs[1..])
+}
+
 lemma EdgeToVarPhiPath(slide1: Slide, slide2: Slide, slideDG: SlideDG, varSlideDG: VarSlideDG, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires IsSlideDGOf(slideDG, S)
 	requires IsVarSlideDGOf(varSlideDG, S)
-	requires ExistsEdge(slide1, slide2, slideDG)
-	// ==>
-	requires SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG))
+	requires SlideDependence(slide1, slide2, S)
 	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
 	ensures VarSlideDGReachablePhi(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
 // לכתוב למה עבור קשת מסלייד1 לסלייד2, קיים מסלול מוארסלייד1 לוארסלייד2 שעובר דרך 0 או יותר קודקודי פי
 // והפוך, ממסלול לקשת
 {
-	var via :| SlideDGReachableVia(slideDG, slide1, via, slide2, SlideDGSlides(slideDG));
-	assert IsExtendSlideDGPath(via) by {
-		assert slide1 != slide2; // add to preconditions?		
-	}
-	assert IsEmptySlideDGPath(GetPrefixSlideDGPath(via)) by {
-		assert slide1 in SlideDGMap(slideDG)[slide2];
-	}
-	assert GetNSlideDGPath(via) == slide1;
+	assert SlideDependence(slide1, slide2, S);
+	var v := SlideVariable(slide1);
+	var l1 := SlideLabel(slide1);
+	var l2 :| l2 in SlideLabels(slide2, S) && v in UsedVars(S, l2) && ReachingDefinition(S, SlideLabel(slide1), l2, v);
+	assert (v, l1) in ReachingDefinitionsIn(S, l2);
 	
-	EdgeToVarPhiPathVia(slideDG, varSlideDG, slide1, slide2, S, S', XLs, X, via);
+	var vSlide1 := VarSlideOf(S, S', slide1);
+	var vSlide2 := VarSlideOf(S, S', slide2);
+
+	assert exists via: VarSlideDGPath :: VarSlideDGReachableViaPhi(varSlideDG, vSlide1, via, vSlide2, varSlidesOf(S', def(S))) by {
+		if |ReachingDefinitionsInFor(S, l2, v)| == 1 // meaning there's an edge between vSlide1 and vSlide2
+		{
+			var via := VarSlideDGPath.Extend(VarSlideDGPath.Empty, vSlide1);
+			assert VarSlideDGReachableViaPhi(varSlideDG, vSlide1, via, vSlide2, varSlidesOf(S', def(S))) by {
+				var varL1 := VarLabelOf(S, S', l1);
+				var varL2 := VarLabelOf(S, S', l2); // prove: exists l :: l in VarSlideLabels(vSlide2) && varL2 <= l
+				var v' := setOf(GetLHS(slipOf(S', varL1))) * instancesOf(v, X, XLs); // live on exit of v in varL1 (i1 in the example below)
+				var v'' := UsedVars(S', varL2) * instancesOf(v, X, XLs);  // live on entry of v in varL2 (also i1 in the example below)
+				assert v' == v''; // def of v in varL1 and use of the same v in varL2
+				// ==>
+				assert VarSlideDependence(vSlide1, vSlide2, S');
+			}
+		}
+		else
+		{
+			//assert liveOnEntry for varL2 contains phi-variable of v;
+			/*
+
+			1  i := 5;
+			2  j := i + 1;   rdIn(i)={(i, 1)}     rdIn={(i,1)}
+			3  i := 9;		 rdIn(i)={(i, 1)}	  rdIn={(i,1), (j,2)}
+
+			1  i1 := 5;
+			2  j2 := i1 + 1;   liveEntry(i)={i1}   liveEntry={i1}
+			3  i3 := 9;		   liveEntry(i)={i1}   liveEntry={i1, j2}
+
+			*/
+		}
+	}
 }
 
-lemma EdgeToVarPhiPathVia(slideDG: SlideDG, varSlideDG: VarSlideDG, slide1: Slide, slide2: Slide, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>, via: SlideDGPath)
+lemma EdgeToVarPhiPathVia(slide1: Slide, slide2: Slide, slideDG: SlideDG, varSlideDG: VarSlideDG, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+{
+
+}
+
+/*
+lemma VarPhiPathToEdge(slide1: Slide, slide2: Slide, slideDG: SlideDG, varSlideDG: VarSlideDG, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
 	requires Valid(S) && Core(S)
 	requires Valid(S') && Core(S')
 	requires IsSlideDGOf(slideDG, S)
 	requires IsVarSlideDGOf(varSlideDG, S)
-	requires slide2 in SlideDGMap(slideDG)
-	requires slide1 in SlideDGMap(slideDG)[slide2]
-	// ==>
-	requires SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG))
+	requires VarSlideDGReachablePhi(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
 	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
-	ensures VarSlideDGReachablePhi(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
+	ensures SlideDependence(slide1, slide2, S)
+//  למה עבור מסלול מוארסלייד1 לוארסלייד2 שעובר דרך 0 או יותר קודקודי פי, קיימת קשת מסלייד1 לסלייד2
+*/
+
+lemma PathBackCorrespondence(slideDG: SlideDG, varSlideDG: VarSlideDG, slide1: Slide, slide2: Slide, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
+	requires Valid(S) && Core(S)
+	requires Valid(S') && Core(S')
+	requires IsSlideDGOf(slideDG, S)
+	requires IsVarSlideDGOf(varSlideDG, S)
+	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
+	requires VarSlideTag(VarSlideOf(S, S', slide1)) == Regular && VarSlideTag(VarSlideOf(S, S', slide2)) == Regular
+	requires VarSlideDGReachable(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
+	ensures SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG))
+{
+	var via :| VarSlideDGReachableVia(varSlideDG, VarSlideOf(S, S', slide1), via, VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG));
+
+	PathBackCorrespondenceVia(slideDG, varSlideDG, slide1, slide2, S, S', XLs, X, via);
+}
+
+lemma PathBackCorrespondenceVia(slideDG: SlideDG, varSlideDG: VarSlideDG, slide1: Slide, slide2: Slide, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>, via: VarSlideDGPath)
+	requires Valid(S) && Core(S)
+	requires Valid(S') && Core(S')
+	requires IsSlideDGOf(slideDG, S)
+	requires IsVarSlideDGOf(varSlideDG, S)
+	requires RemoveEmptyAssignments(Rename(S', XLs, X)) == S
+	requires VarSlideTag(VarSlideOf(S, S', slide1)) == Regular && VarSlideTag(VarSlideOf(S, S', slide2)) == Regular
+	requires VarSlideDGReachable(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
+	ensures SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG))
 	decreases via
 {
 	var varslide1 := VarSlideOf(S, S', slide1);
 	var varslide2 := VarSlideOf(S, S', slide2);
 
 	match via {
-	case Empty => ///////////////
-		assert varslide1 == varslide2 by { assert slide1 == slide2; }////////////////////
-	case Extend(prefix, n) =>
-	//		 (prefix) 
-	// slide1 ------> n -> slide2
-		assert n in SlideDGSlides(slideDG) && slide2 in SlideDGNeighbours(slideDG, n) && SlideDGReachableVia(slideDG, slide1, prefix, n, SlideDGSlides(slideDG));
-		
-		if (varslide2 in VarSlideDGNeighbours(varSlideDG, varslide1)) {
-			assert VarSlideDGReachablePhi(varSlideDG, varslide1, varslide2, VarSlideDGVarSlides(varSlideDG));
+	case Empty => 
+		assert slide1 == slide2 by { assert varslide1 == varslide2; }
+	case Extend(prefix', n') =>
+	//		     (prefix') 
+	// varslide1 --------> n' -> varslide2
+		assert n' in VarSlideDGVarSlides(varSlideDG) && varslide2 in VarSlideDGNeighbours(varSlideDG, n') && VarSlideDGReachableVia(varSlideDG, varslide1, prefix', n', VarSlideDGVarSlides(varSlideDG));
+
+		var n'';
+
+		if (VarSlideTag(n') == Regular)
+		{
+			n'' := n';
 		}
-		dfsdf
-		else {
-			// נניח בשלילה שלפחות אחד מהקודקודים על המסלול אינו פי כלומר רגולר.
-			// נסיק שאם אחד מהקודקודים על המסלול הוא רגולר אז הקשת המקורית בין הסליידים לא קיימת כי אין סלייד-דיפנדנס.
-			// (כי יש עוד דף למשתנה על המסלול בסיאףג'י)
-			var n' := VarSlideOf(S, S', n);
-			assert VarSlideDGReachablePhi(varSlideDG, varslide1, varslide2, VarSlideDGVarSlides(varSlideDG)) by {
-				calc {
-					!VarSlideDGReachablePhi(varSlideDG, varslide1, varslide2, VarSlideDGVarSlides(varSlideDG));
-				==>
-					!(exists via: VarSlideDGPath :: VarSlideDGReachableVia(varSlideDG, varslide1, via, varslide2, VarSlideDGVarSlides(varSlideDG)))
-
-
-				==>
-					!(n' in VarSlideDGVarSlides(varSlideDG) && varslide2 in VarSlideDGNeighbours(varSlideDG, n')
-					&& n'.1 == Phi && VarSlideDGReachableVia(varSlideDG, varslide1, prefix, n', VarSlideDGVarSlides(varSlideDG)))
-				==
-					
-			
-
-
-
-
-					!SlideDependence(CFGOf(S), slide1, slide2, S); // בטוח נכון כי יש קשת
-				==>
-					false;
-				}
-			}
+		else // Phi
+		{
+			n'' := backward scan the path between varslide1 and varslide2 and find the first regular varslide that is not varslide2;
 		}
-		
-		/*var n' := VarSlideOf(S, S', n);
-		EdgeToVarPhiPath(n, slide2, slideDG, varSlideDG, S, S', XLs, X);
-		assert VarSlideDGReachablePhi(varSlideDG, n', varslide2, VarSlideDGVarSlides(varSlideDG));
+
+		var prefix'' := prefix' - n';
+
+		assert VarSlideDGReachablePhi(varSlideDG, n'', varslide2, VarSlideDGVarSlides(varSlideDG));
+		var n := SlideOf(S, S', n''); // check function
+		VarPhiPathToEdge(n, slide2, slideDG, varSlideDG, S, S', XLs, X);
 		// ==>
-		assert VarSlideDGReachable(varSlideDG, n', varslide2, VarSlideDGVarSlides(varSlideDG));
-		assert VarSlideDGReachable(varSlideDG, varslide1, n', VarSlideDGVarSlides(varSlideDG)) by {
-			PathCorrespondenceVia(slideDG, varSlideDG, slide1, n, S, S', XLs, X, prefix);
+		assert SlideDependence(n, slide2, S);
+		// ==>
+		assert SlideDGReachable(slideDG, n, slide2, SlideDGSlides(slideDG));
+		assert SlideDGReachable(slideDG, slide1, n, SlideDGSlides(slideDG)) by {
+			PathBackCorrespondenceVia(slideDG, varSlideDG, slide1, n, S, S', XLs, X, prefix'');
 		}
-		// ==> lemma: (from', n') && (n', to') ==> (from', to')
-		assert VarSlideDGReachable(varSlideDG, varslide1, varslide2, VarSlideDGVarSlides(varSlideDG));*/
+
+		// ==>
+		assert SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG));
 	}
 }
-
-/*
-lemma VarPhiPathToEdge(slide1: Slide, slide2: Slide, slideDG: SlideDG, varSlideDG: VarSlideDG, S: Statement, S': Statement)
-	requires Valid(S) && Core(S)
-	requires Valid(S') && Core(S')
-	requires VarSlideDGReachablePhi(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
-	//requires connection between SV and SV'
-	ensures slide2 in SlideDGMap(slideDG)
-	ensures slide1 in SlideDGMap(slideDG)[slide2]
-
-//  למה עבור מסלול מוארסלייד1 לוארסלייד2 שעובר דרך 0 או יותר קודקודי פי, קיימת קשת מסלייד1 לסלייד2
-
-lemma PathBackCorrespondence(slideDG: SlideDG, varSlideDG: VarSlideDG, slide1: Slide, slide2: Slide, S: Statement, S': Statement)
-	requires Valid(S) && Core(S)
-	requires Valid(S') && Core(S')
-	requires VarSlideTag(VarSlideOf(S, S', slide1)) == Regular && VarSlideTag(VarSlideOf(S, S', slide2)) == Regular
-	requires VarSlideDGReachable(varSlideDG, VarSlideOf(S, S', slide1), VarSlideOf(S, S', slide2), VarSlideDGVarSlides(varSlideDG))
-	//requires connection between SV and SV'
-	ensures SlideDGReachable(slideDG, slide1, slide2, SlideDGSlides(slideDG))
-*/
 
 lemma {:verify false}PathCorrespondence(slideDG: SlideDG, varSlideDG: VarSlideDG, slide1: Slide, slide2: Slide, S: Statement, S': Statement, XLs: seq<set<Variable>>, X: seq<Variable>)
 	requires Valid(S) && Core(S)
@@ -1085,12 +1106,12 @@ lemma {:verify false}PathCorrespondenceVia(slideDG: SlideDG, varSlideDG: VarSlid
 	
 
 /*lemma L4(X: set<Variable>, vsSSA: VariablesSSA, v': Variable, V': set<Variable>, instancesOfFinalDefSlide: set<Variable>,
-		 finalDefSlide: Slide, S: Statement, slideDG: SlideDG, cfg: CFG, V: set<Variable>, slide: Slide, slidesSV: set<Slide>,
+		 finalDefSlide: Slide, S: Statement, slideDG: SlideDG, V: set<Variable>, slide: Slide, slidesSV: set<Slide>,
 		 slideOfV': VarSlide, finalDefVarSlides: set<VarSlide>, varSlideDG: VarSlideDG, SV': Statement)
-	//requires forall Sm :: Sm in finalDefSlides(S, slideDG, cfg, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)))	
+	//requires forall Sm :: Sm in finalDefSlides(S, slideDG, V) || (exists Sn :: Sn in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, Sn, SlideDGSlides(slideDG)))	
 	requires slide in slidesSV
-	requires slide !in finalDefSlides(S, slideDG, cfg, V)
-	requires finalDefSlide in finalDefSlides(S, slideDG, cfg, V) && SlideDGReachable(slideDG, slide, finalDefSlide, SlideDGSlides(slideDG))
+	requires slide !in finalDefSlides(S, slideDG, V)
+	requires finalDefSlide in finalDefSlides(S, slideDG, V) && SlideDGReachable(slideDG, slide, finalDefSlide, SlideDGSlides(slideDG))
 	requires instancesOfFinalDefSlide == setOf(vsSSA.getInstancesOfVaribleFunc(SlideVariable(finalDefSlide)))
 	requires {v'} == instancesOfFinalDefSlide * V'
 	requires slideOfV' == varslideof(v') // TODO
@@ -1152,7 +1173,7 @@ function method {:verify false}ComputeSlidesDepRtc(S: Statement, V: set<Variable
 
 method {:verify false} ComputeFISlice(S: Statement, V: set<Variable>, ghost varSlideDG: VarSlideDG) returns (SV: Statement)
 	requires IsVarSlideDGOf(varSlideDG, S) // varSlideDG is of S
-	ensures var varSlidesSV: set<VarSlide> := varSlidesOf(SV, V); forall Sm :: Sm in varSlidesSV <==> (VarSlideVariable(Sm) in V || (exists Sn: VarSlide :: VarSlideVariable(Sn) in V && VarSlideDGReachable(varSlideDG, Sm, Sn, VarSlideDGVarSlides(varSlideDG))))	 // Implement VarSlideDGReachable
+	ensures var varSlidesSV: set<VarSlide> := varSlidesOf(S, def(S)); forall Sm :: Sm in varSlidesSV <==> (VarSlideVariable(Sm) in V || (exists Sn: VarSlide :: VarSlideVariable(Sn) in V && VarSlideDGReachable(varSlideDG, Sm, Sn, VarSlideDGVarSlides(varSlideDG))))	 // Implement VarSlideDGReachable
 	ensures Substatement(SV, S)
 	ensures Valid(SV) && Core(SV)
 {

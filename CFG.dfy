@@ -50,36 +50,6 @@ function method ComputeCFGEdges(S: Statement, N: set<CFGNode>) : set<CFGEdge>
 
 function CFGOf(S: Statement): CFG
 
-function method FindSubstatement(S: Statement, l: Label) : Statement
-	//requires |l| >= 1
-	requires Core(S)
-	ensures Core(FindSubstatement(S, l))
-{
-	match S {
-		case Assignment(LHS,RHS) => if |l| == 1 then S else Skip
-		case SeqComp(S1,S2) => if |l| >= 2 then (if l[1] == 1 then FindSubstatement(S1, l[1..]) else FindSubstatement(S2, l[1..])) else Skip
-		case IF(B,Sthen,Selse) => if |l| >= 2 then (if l[1] == 1 then FindSubstatement(Sthen, l[1..]) else FindSubstatement(Selse, l[1..])) else Skip
-		case DO(B,S0) => if |l| >= 2 then FindSubstatement(S0, l[1..]) else Skip
-		case Skip => Skip
-	}
-}
-
-function UsedVars(S: Statement, l: Label) : set<Variable>
-/*{
-	// call FindSubstatement
-
-	var subStatement := FindSubstatement(S, l);
-
-}*/
-
-function method DefinedVars(S: Statement, l: Label) : set<Variable>
-/*{
-	// call FindSubstatement
-
-	var subStatement := FindSubstatement(S, l);
-
-}*/
-
 datatype CFGPath = Empty | Extend(CFGPath, CFGNode)
 
 function CFGNeighbours(n: CFGNode) : set<CFGNode>

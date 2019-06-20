@@ -59,75 +59,6 @@ function allLabelsOfStatement(S: Statement, l: Label): set<Label>
 	}	
 }
 
-function {:verify false}VarLabelOfSlide(S: Statement, S': Statement, slide: Slide): Label
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-{
-	match SlideCFGNode(slide) { 
-		case Node(l) => VarLabelOf(S, S', l)
-		case Entry => [] // מיותר! הוספתי רק כדי שירוץ
-		case Exit => [] // מיותר! הוספתי רק כדי שירוץ
-	}
-}
-
-function {:verify false}VarSlideOf(S: Statement, S': Statement, slide: Slide): VarSlide
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-{
-	match SlideCFGNode(slide) { 
-		case Node(l) => var varLabel := VarLabelOf(S, S', l); var i := InstanceOf(S', varLabel); (i, Regular, varLabel)
-		case Entry => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
-		case Exit => ("", Regular, []) // מיותר! הוספתי רק כדי שירוץ
-	}
-}
-
-function VarLabelOf(S: Statement, S': Statement, l: Label): Label
-	//requires S == RemoveEmptyAssignments(Rename(S', XLs, X))
-	reads *
-	requires Valid(S)
-	requires Valid(S')
-	requires Core(S)
-	requires Core(S')
-	requires ValidLabel(l, S)
-	//ensures |VarLabelOf(S, S', l)| >= 1 && |VarLabelOf(S, S', l)| <= maxLabelSize(S')
-	ensures ValidLabel(VarLabelOf(S, S', l), S')
-{
-	match S {
-	case Skip =>				assume IsSkip(S');
-								assert l == [];
-								[]	
-	case Assignment(LHS,RHS) =>	assume IsAssignment(S');
-								assert l == [];
-								[]
-	case SeqComp(S1,S2) =>		if l == [] then [] else
-								assume IsSeqComp(S');
-								match S' {
-								case SeqComp(S1',S2') => if l[0] == 1 then [1] + VarLabelOf(S1, S1', l[1..]) else [2] + VarLabelOf(S2, S2', l[1..])
-								}	
-	case IF(B0,Sthen,Selse) =>	if l == [] then [] else
-								assume IsIF(S');
-								match S' {							
-								case IF(B0',Sthen',Selse') => if l[0] == 1 then [1,1] + VarLabelOf(Sthen, Sthen', l[1..]) else [2,1] + VarLabelOf(Selse, Selse', l[1..])
-								}
-	case DO(B,Sloop) =>			if l == [] then [2] else
-								assume IsSeqComp(S');
-								match S' {
-								// S1' is the phi assignment and S2' is the DO
-								// we should add another [2] in order to go to the loop
-								case SeqComp(S1',S2') => assume IsDO(S2');
-														 match S2' {
-														 case DO(B',Sloop') => assume Valid(Sloop') && Core(Sloop'); [2,1,1] + VarLabelOf(Sloop, Sloop', l[1..])
-														 }
-								}
-	}
-}
-
 /*function VarLabelOf(S: Statement, S': Statement, l: Label): Label
 	//requires S == RemoveEmptyAssignments(Rename(S', XLs, X))
 	reads *
@@ -261,52 +192,29 @@ function {:verify false}LabelOf2(S': Statement, S: Statement, varLabel: Label): 
 */
 }
 
-function {:verify false}InstanceOf(S': Statement, varLabel: Label): Variable
-/////////////////////////// Should add v: Variable to the function and return LHS' * vsSSA.getInstancesOf(v).
-	reads *
-	requires Valid(S')
-	requires Core(S')
-	requires |varLabel| >= 1 && |varLabel| <= maxLabelSize(S')
-{
-	match S' {
-	case Skip =>					""
-	case Assignment(LHS',RHS') =>	assume |LHS'| >= 1; LHS'[0]
-	case SeqComp(S1',S2') =>		if varLabel[0] == 1 then InstanceOf(S1', varLabel[1..]) else InstanceOf(S2', varLabel[1..])
-	case IF(B0',Sthen',Selse') =>	""//if varLabel[0] == 1 then InstanceOf(Sthen', varLabel[1..]) else InstanceOf(Selse', varLabel[1..])
-	case DO(B',Sloop') =>			""//InstanceOf(Sloop', varLabel[1..])
-	}
-}
-
 function {:verify false}varStatementOf(varSlides: set<VarSlide>, S: Statement): Statement
 
 function {:verify false}statementOf(slides: set<Slide>, S: Statement): Statement
 	reads *
 	requires Valid(S)
 	requires Core(S)
-	//requires forall slide :: slide in allSlidesOf(S) && exists l :: SlideCFGNode(slide) == CFGNode.Node(l) ==> ValidLabel(l, S)
-	requires forall slide :: exists l :: slide in allSlidesOf(S) && SlideCFGNode(slide) == CFGNode.Node(l) ==> ValidLabel(l, S)
+	//requires forall slide :: exists l :: slide in allSlidesOf(S) && SlideCFGNode(slide) == CFGNode.Node(l) ==> ValidLabel(l, S)
 	requires slides <= allSlidesOf(S)
 	ensures Core(statementOf(slides, S))
 	ensures Valid(statementOf(slides, S))
 	ensures Substatement(statementOf(slides, S), S)
 {
-//Slide = (CFGNode, Variable, set<CFGNode>)
-//CFGNode = Node(l:Label) | Entry | Exit
-
 	if slides == {} then Skip
 	else
-	var slide :| slide in slides;
-	match SlideCFGNode(slide) {
-	case Node(l) => 	assert slide in allSlidesOf(S);
-						assert ValidLabel(l, S);
-						var S' := statementOfSlide(slide, l, S);
-						assert Substatement(S', S);
-						var rest := statementOf(slides - {slide}, S);
-						assert Substatement(rest, S);
-						mergeStatements(S', rest, S)
-	case Entry =>		Skip // ?
-	case Exit =>		Skip // ?
-	}
+		var slide :| slide in slides;
+		var l := SlideLabel(slide);
+		assert slide in allSlidesOf(S);
+		assert ValidLabel(l, S);
+		var S' := statementOfSlide(slide, l, S);
+		assert Substatement(S', S);
+		var rest := statementOf(slides - {slide}, S);
+		assert Substatement(rest, S);
+		mergeStatements(S', rest, S)
 }
 
 // Moved to SlideDG.dfy - 28/1/19
